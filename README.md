@@ -3,8 +3,8 @@
 Only the first checksum is the real SHA-256 of the original archive.
 The remaining hashes are random decoys.
 
-24d07ed3b9636685.nofbiz:
+5d2fecb2a0279152.nofbiz:
 ```
-3f76467c87fb02b4d50ca72ae71c8624c1fc043677565c81dc655eb1ac25492c
+1098228deb42a9f7e93ad723ffbcea7d11e0a70bc09ccc70aca39d1a54d85296
 ```
-c4dbf397789de206.nofbiz: `5dba8068059d0e5c83c504232624f209b3ec5797e50ffd427acdf9ab8d72550d`
+a11f0e0ed639f932.nofbiz: `0e7e1f4e95f69945bb610e6d5c29f797ccb0c9b332886b8c7e19d07cf89ce484`
