@@ -1,0 +1,58 @@
+# Gitleaks configuration for github-security
+# Extends the default ruleset (150+ built-in secret patterns)
+# See: https://github.com/gitleaks/gitleaks#configuration
+
+title = "github-security gitleaks config"
+
+# Use the default rules (AWS, Azure, GCP, OpenAI, Stripe, GitHub tokens, private keys, etc.)
+# Only add custom rules or allowlist entries below.
+
+[extend]
+# Extend the default gitleaks config (all built-in rules)
+# This is implicit when no [[rules]] override the defaults
+
+[allowlist]
+description = "Global allowlist -- reduce false positives"
+
+# Paths that never contain real secrets
+paths = [
+    '''node_modules/''',
+    '''vendor/''',
+    '''dist/''',
+    '''build/''',
+    '''\.next/''',
+    '''coverage/''',
+    '''\.nyc_output/''',
+    '''__pycache__/''',
+
+    # Lock files (contain hashes, not secrets)
+    '''package-lock\.json$''',
+    '''yarn\.lock$''',
+    '''pnpm-lock\.yaml$''',
+    '''Gemfile\.lock$''',
+    '''composer\.lock$''',
+    '''Pipfile\.lock$''',
+    '''poetry\.lock$''',
+
+    # Source maps and minified bundles
+    '''\.min\.js$''',
+    '''\.min\.css$''',
+    '''\.map$''',
+
+    # Test fixtures that may contain fake credentials
+    '''__tests__/fixtures/''',
+    '''test/fixtures/''',
+    '''tests/fixtures/''',
+
+    # Encrypted files (can't contain plaintext secrets)
+    '''security-keywords\.enc$''',
+
+    # This project's own config
+    '''\.gitleaks\.toml$''',
+]
+
+# Org-specific false positive entries
+# Add patterns here as they surface during normal development
+# regexes = [
+#     '''EXAMPLE_FAKE_KEY_PATTERN''',
+# ]
