@@ -257,6 +257,37 @@ function _profilePropsToObject(profile) {
   );
 }
 
+/**
+ * MIRRORS the deployed framework `_resolvePickerIdentity` in people.api.ts.
+ * Queries the picker by samAccountName (raw, all provider variants) and
+ * disambiguates multi-account users: exact Key -> provider-prefix -> first.
+ * This is how the NEW getFullUserDetails derives email/displayName.
+ */
+async function _pickerIdentity(normalizedLogin) {
+  try {
+    const sam = parseEmployeeId(normalizedLogin);
+    const { parsed } = await _rawSearch(sam, { maximumSuggestions: 20 }); // parsed = raw, unnormalized
+    const resolved = parsed.filter(r => r.IsResolved === true);
+    if (!resolved.length) return null;
+
+    let hit;
+    if (resolved.length === 1) {
+      hit = resolved[0];
+    } else {
+      hit = resolved.find(r => r.Key === normalizedLogin);            // priority 1: exact Key
+      if (!hit) {
+        const pm = normalizedLogin.match(/^(i:[^|]+\|)/);
+        if (pm) hit = resolved.find(r => r.Key.startsWith(pm[1]));    // priority 2: provider prefix
+      }
+      if (!hit) hit = resolved[0];                                    // priority 3: first
+    }
+    return { email: hit.EntityData?.Email || null, displayName: hit.DisplayText || null };
+  } catch (err) {
+    console.warn('[_pickerIdentity] picker resolution failed, caller falls back', { normalizedLogin, err });
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public: full getFullUserDetails pipeline, every step dumped
 // ---------------------------------------------------------------------------
@@ -311,12 +342,18 @@ export async function debugCurrentUser(loginNameOrEmail) {
     console.log(profile);
     console.groupEnd();
 
-    // Consolidated (mirror getFullUserDetails return)
+    // Step 4: picker identity (NEW -- deployed framework prefers this for email/displayName)
+    const picker = await _pickerIdentity(normalizedLogin);
+    console.group('%c4. clientPeoplePickerSearchUser (picker identity -- NEW)', 'color:#4ea1ff');
+    console.log(picker);
+    console.groupEnd();
+
+    // Consolidated -- mirrors the CURRENT getFullUserDetails return (picker-first).
     const details = {
       employeeId:   parseEmployeeId(spUser.LoginName),
       loginName:    spUser.LoginName,
-      displayName:  profile?.DisplayName ?? spUser.Title,
-      email:        profile?.Email || spUser.Email,
+      displayName:  picker?.displayName || profile?.DisplayName || spUser.Title,
+      email:        picker?.email || profile?.Email || spUser.Email,
       siteUserId:   spUser.Id,
       jobTitle:     profile?.Title ?? '',
       pictureUrl:   profile?.PictureUrl ?? '',
@@ -328,23 +365,20 @@ export async function debugCurrentUser(loginNameOrEmail) {
       profileProperties: _profilePropsToObject(profile),
     };
 
-    console.group('%c=> consolidated FullUserDetails', 'color:#39d353;font-weight:bold');
+    console.group('%c=> consolidated FullUserDetails (picker-first, matches deployed)', 'color:#39d353;font-weight:bold');
     console.log(details);
     console.log('claims breakdown:', decodeClaims(details.loginName));
-    // Primary identity fields WITH provenance -- which underlying source won.
-    // displayName/email are the fields that can silently diverge: the profile
-    // (UPS) value is preferred, ensureUser is only the fallback.
     console.table([
       { field: 'claimsLogin', value: details.loginName,   source: 'ensureUser.LoginName' },
       { field: 'employeeId',  value: details.employeeId,  source: 'parseEmployeeId(LoginName)' },
       { field: 'siteUserId',  value: details.siteUserId,  source: 'ensureUser.Id' },
-      { field: 'displayName', value: details.displayName, source: profile?.DisplayName ? 'profile.DisplayName' : 'ensureUser.Title (fallback)' },
-      { field: 'email',       value: details.email,       source: profile?.Email ? 'profile.Email' : 'ensureUser.Email (fallback)' },
+      { field: 'displayName', value: details.displayName, source: picker?.displayName ? 'picker.DisplayText' : profile?.DisplayName ? 'profile.DisplayName (fallback)' : 'ensureUser.Title (fallback)' },
+      { field: 'email',       value: details.email,       source: picker?.email ? 'picker.EntityData.Email' : profile?.Email ? 'profile.Email (fallback)' : 'ensureUser.Email (fallback)' },
     ]);
-    // Raw side-by-side for the two fields that can disagree between sources.
+    // All three email sources side by side -- see exactly where they diverge.
     console.table([
-      { field: 'displayName', ensureUser: spUser.Title, upsProfile: profile?.DisplayName ?? '(no profile)', final: details.displayName },
-      { field: 'email',       ensureUser: spUser.Email, upsProfile: profile?.Email ?? '(no profile)',       final: details.email },
+      { field: 'email',       picker: picker?.email ?? '(none)',       upsProfile: profile?.Email ?? '(none)',       ensureUser: spUser.Email, final: details.email },
+      { field: 'displayName', picker: picker?.displayName ?? '(none)', upsProfile: profile?.DisplayName ?? '(none)', ensureUser: spUser.Title, final: details.displayName },
     ]);
     console.groupEnd();
 
@@ -528,14 +562,19 @@ export async function compareEmail(loginNameOrEmail) {
   const input = loginNameOrEmail ?? _sessionEmail() ?? _sessionLogin();
   console.group(`%c[compareEmail] ${input}`, 'font-weight:bold');
   try {
-    // FORMAT A -- exactly what CurrentUser.get('email') / getFullUserDetails.email yields.
+    // FORMAT A -- exactly what the DEPLOYED CurrentUser.get('email') /
+    // getFullUserDetails.email yields: picker EntityData.Email first, then UPS,
+    // then ensureUser (must match src/base/sharepoint/api/people.api.ts).
     const login  = await _resolveLoginName(input);
-    const spUser = await _ensureUser(login);
-    let profile = null;
-    try { profile = await _fetchProfile(login); }
-    catch (err) { console.warn('[compareEmail] profile fetch failed, using ensureUser email', { login, err }); }
-    const emailA   = profile?.Email || spUser.Email;
-    const sourceA  = profile?.Email ? 'UPS profile.Email' : 'ensureUser.Email (fallback)';
+    const [spUser, profile, picker] = await Promise.all([
+      _ensureUser(login),
+      _fetchProfile(login).catch(err => { console.warn('[compareEmail] profile fetch failed', { login, err }); return null; }),
+      _pickerIdentity(login),
+    ]);
+    const emailA  = picker?.email || profile?.Email || spUser.Email;
+    const sourceA = picker?.email ? 'picker EntityData.Email (samAccountName query)'
+                  : profile?.Email ? 'UPS profile.Email (fallback)'
+                  : 'ensureUser.Email (fallback)';
 
     // FORMAT B -- what searchUsers exposes. Show every provider variant.
     const { raw, normalized } = await debugSearchUsers(input);
@@ -580,9 +619,93 @@ export async function compareEmail(loginNameOrEmail) {
 }
 
 // ---------------------------------------------------------------------------
+// Public: root-cause diagnostic for a DIFFERENT-STRINGS email mismatch
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs BOTH picker queries that FORMAT A and FORMAT B use and shows which AD
+ * principal each resolves to. Pinpoints why the emails differ:
+ *   - FORMAT A (CurrentUser record): picker query by samAccountName, pick exact-Key
+ *   - FORMAT B (app lookup):         picker query by email, pick normalized-richest
+ * If the two queries land on different `Key`s, the user has multiple AD accounts
+ * and the sam-query vs email-query resolve to different principals.
+ *
+ * @param {string} [loginNameOrEmail] - Defaults to the session user.
+ */
+export async function diagnoseEmailMismatch(loginNameOrEmail) {
+  const input = loginNameOrEmail ?? _sessionEmail() ?? _sessionLogin();
+  console.group(`%c[diagnoseEmailMismatch] ${input}`, 'font-weight:bold');
+  try {
+    const login = await _resolveLoginName(input);
+    const sam = parseEmployeeId(login);
+
+    const [spUser, profile] = await Promise.all([
+      _ensureUser(login),
+      _fetchProfile(login).catch(err => { console.warn('[diagnose] profile fetch failed', { login, err }); return null; }),
+    ]);
+    const inputIsEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(input));
+    const emailSeed = inputIsEmail ? String(input) : (spUser.Email || profile?.Email || '');
+
+    console.log('resolved login:', login);
+    console.log('FORMAT A query key (samAccountName):', sam);
+    console.log('FORMAT B query key (email):', emailSeed, inputIsEmail ? '(from your input)' : '(from ensureUser/UPS)');
+
+    const cols = (arr) => arr.map(r => ({ Key: r.Key, email: r.EntityData?.Email, name: r.DisplayText, provider: r.ProviderName, type: r.EntityType }));
+
+    // FORMAT A: query by samAccountName
+    const { parsed: rawA } = await _rawSearch(sam, { maximumSuggestions: 20 });
+    const resolvedA = rawA.filter(r => r.IsResolved);
+    console.group(`%cFORMAT A -- picker by samAccountName "${sam}" (${resolvedA.length} resolved)`, 'color:#4ea1ff');
+    console.table(cols(resolvedA));
+    console.groupEnd();
+    const pickA = (await _pickerIdentity(login))?.email ?? '';
+
+    // FORMAT B: query by email
+    let resolvedB = [], pickB = '';
+    if (emailSeed) {
+      const { parsed: rawB } = await _rawSearch(emailSeed, { maximumSuggestions: 20 });
+      resolvedB = rawB.filter(r => r.IsResolved);
+      console.group(`%cFORMAT B -- picker by email "${emailSeed}" (${resolvedB.length} resolved)`, 'color:#4ea1ff');
+      console.table(cols(resolvedB));
+      console.groupEnd();
+      pickB = _normalizeResults(rawB)[0]?.EntityData?.Email ?? '';
+    } else {
+      console.warn('[diagnose] no email seed -- cannot run FORMAT B query');
+    }
+
+    const keysB = new Set(resolvedB.map(r => r.Key));
+    const sharePrincipal = resolvedA.some(r => keysB.has(r.Key));
+
+    console.group('%c=> DIAGNOSIS', 'color:#39d353;font-weight:bold');
+    console.table([
+      { path: 'A record  (sam query, exact-Key)',     pickedEmail: pickA },
+      { path: 'B lookup  (email query, normalized)',   pickedEmail: pickB },
+    ]);
+    console.log('same email string?', pickA === pickB);
+    console.log('queries share a principal (Key)?', sharePrincipal);
+    if (!sharePrincipal && resolvedB.length) {
+      console.error('ROOT CAUSE: sam-query and email-query resolve to DIFFERENT AD principals (multi-account). FIX: record the email the SAME email-keyed way the lookup does, so both converge on the same principal.');
+    } else if (pickA !== pickB) {
+      console.error('ROOT CAUSE: same principal set, different variant selected (exact-Key vs normalized-richest), or casing. FIX: identical selection + lowercase on both sides.');
+    } else {
+      console.log('picks agree -- no mismatch on this user.');
+    }
+    console.groupEnd();
+
+    return { login, sam, emailSeed, pickA, pickB, sharePrincipal, resolvedA, resolvedB };
+  } catch (err) {
+    console.error('[diagnoseEmailMismatch] failed', err);
+    throw err;
+  } finally {
+    console.groupEnd();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Console exposure
 // ---------------------------------------------------------------------------
 
+window.diagnoseEmailMismatch = diagnoseEmailMismatch;
 window.debugCurrentUser     = debugCurrentUser;
 window.debugSearchUsers     = debugSearchUsers;
 window.compareUserSources   = compareUserSources;
@@ -593,6 +716,7 @@ window.decodeClaims         = decodeClaims;
 window.DebugUserError       = DebugUserError;
 
 console.log('[currentUser debug] loaded.');
+console.log('  await diagnoseEmailMismatch(loginOrEmail?) -- WHY A and B differ: both picker queries + which principal each hits');
 console.log('  await compareEmail(loginOrEmail?)        -- FORMAT A (CurrentUser) vs FORMAT B (searchUsers), byte-level');
 console.log('  await debugCurrentUser(loginOrEmail?)   -- full getFullUserDetails pipeline, raw + consolidated');
 console.log('  await debugSearchUsers(query, options?)  -- picker search, raw + normalized');
