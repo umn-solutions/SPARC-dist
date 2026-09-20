@@ -3204,6 +3204,42 @@ async function _fetchUserGroups(userId, siteUrl) {
     return _unwrapCollection$1(_unwrapD(data));
 }
 
+async function _resolvePickerIdentity(normalizedLogin) {
+    try {
+        const samAccountName = parseEmployeeId(normalizedLogin);
+        const allResults = await searchUsers(samAccountName, {
+            maximumSuggestions: 20,
+            raw: true
+        });
+        const resolved = allResults.filter(r => r.IsResolved === true);
+        if (resolved.length === 0) return null;
+        let hit;
+        if (resolved.length === 1) {
+            hit = resolved[0];
+        } else {
+            hit = resolved.find(r => r.Key === normalizedLogin);
+            if (!hit) {
+                const prefixMatch = normalizedLogin.match(/^(i:[^|]+\|)/);
+                if (prefixMatch) {
+                    const prefix = prefixMatch[1];
+                    hit = resolved.find(r => r.Key.startsWith(prefix));
+                }
+            }
+            if (!hit) hit = resolved[0];
+        }
+        return {
+            email: hit.EntityData?.Email || null,
+            displayName: hit.DisplayText || null
+        };
+    } catch (err) {
+        console.warn("[getFullUserDetails] picker identity resolution failed, falling back to profile/UIL values", {
+            normalizedLogin: normalizedLogin,
+            err: err
+        });
+        return null;
+    }
+}
+
 function parseEmployeeId(loginName) {
     const afterPipe = loginName.includes("|") ? loginName.split("|").pop() : loginName;
     return afterPipe.includes("\\") ? afterPipe.split("\\").pop() : afterPipe;
@@ -3243,7 +3279,14 @@ async function getUserProfile(loginName) {
 
 async function getFullUserDetails(loginName, siteApi = new SiteApi) {
     const normalizedLogin = await _resolveLoginName(loginName);
-    const spUser = await _ensureUser(normalizedLogin, siteApi);
+    const [spUser, profileResult, picker] = await Promise.all([ _ensureUser(normalizedLogin, siteApi), _fetchProfile(normalizedLogin, siteApi.url).catch(err => {
+        console.warn("[getFullUserDetails] failed to fetch profile, continuing without it", {
+            loginName: normalizedLogin,
+            err: err
+        });
+        return null;
+    }), _resolvePickerIdentity(normalizedLogin) ]);
+    const profile = profileResult;
     let groups = [];
     try {
         groups = await _fetchUserGroups(spUser.Id, siteApi.url);
@@ -3253,20 +3296,11 @@ async function getFullUserDetails(loginName, siteApi = new SiteApi) {
             err: err
         });
     }
-    let profile = null;
-    try {
-        profile = await _fetchProfile(normalizedLogin, siteApi.url);
-    } catch (err) {
-        console.warn("[getFullUserDetails] failed to fetch profile, continuing without it", {
-            loginName: normalizedLogin,
-            err: err
-        });
-    }
     return {
         employeeId: parseEmployeeId(spUser.LoginName),
         loginName: spUser.LoginName,
-        displayName: profile?.DisplayName ?? spUser.Title,
-        email: profile?.Email || spUser.Email,
+        displayName: picker?.displayName || profile?.DisplayName || spUser.Title,
+        email: picker?.email || profile?.Email || spUser.Email,
         siteUserId: spUser.Id,
         jobTitle: profile?.Title ?? "",
         pictureUrl: profile?.PictureUrl ?? "",
