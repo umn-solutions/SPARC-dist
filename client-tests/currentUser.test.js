@@ -209,7 +209,9 @@ function _normalizeResults(results) {
 async function _rawSearch(query, options = {}) {
   const endpoint = `${_webUrl()}/_api/SP.UI.ApplicationPages`
     + `.ClientPeoplePickerWebServiceInterface.clientPeoplePickerSearchUser`;
-  const data = await _spPost(endpoint, { data: _buildSearchPayload(query, options) });
+  // NOTE: _spPost sends the whole 2nd arg as the body. The picker endpoint
+  // expects { queryParams: {...} } at the top level -- do NOT wrap in { data }.
+  const data = await _spPost(endpoint, _buildSearchPayload(query, options));
   const unwrapped = _unwrapD(data);
   const rawJson = typeof unwrapped === 'string' ? unwrapped : unwrapped.ClientPeoplePickerSearchUser;
   return { envelope: data, parsed: JSON.parse(rawJson) };
@@ -449,10 +451,15 @@ export async function compareUserSources(loginNameOrEmail) {
 
     const comparison = rows.map(([field, search, fullDetails]) => {
       const overlap = !String(search).startsWith('(not in') && !String(fullDetails).startsWith('(not in');
-      const match = overlap
-        ? (String(search).toLowerCase() === String(fullDetails).toLowerCase() ? 'MATCH' : 'DIFF')
-        : 'source-only';
-      return { field, searchUsers: search, getFullUserDetails: fullDetails, status: match };
+      let status = 'source-only';
+      if (overlap) {
+        const a = String(search), b = String(fullDetails);
+        // Case-SENSITIVE first -- casing drift is a real query-miss cause.
+        if (a === b) status = 'MATCH';
+        else if (a.toLowerCase() === b.toLowerCase()) status = 'CASE-DIFF';
+        else status = 'DIFF';
+      }
+      return { field, searchUsers: search, getFullUserDetails: fullDetails, status };
     });
 
     console.group('%c=> field-by-field comparison', 'color:#39d353;font-weight:bold');
@@ -505,18 +512,88 @@ export async function dumpProfileProperties(loginNameOrEmail) {
 }
 
 // ---------------------------------------------------------------------------
+// Public: the core email-format discrepancy check
+// ---------------------------------------------------------------------------
+
+/**
+ * For ONE user, compares the email produced by the CurrentUser /
+ * getFullUserDetails path (FORMAT A -- what a user records about themselves)
+ * against the email produced by searchUsers (FORMAT B -- what someone looking
+ * that user up receives). Byte-level, case-SENSITIVE. This is the exact drift
+ * that makes a list query written in one format miss rows keyed in the other.
+ *
+ * @param {string} [loginNameOrEmail] - User to inspect. Defaults to the session user.
+ */
+export async function compareEmail(loginNameOrEmail) {
+  const input = loginNameOrEmail ?? _sessionEmail() ?? _sessionLogin();
+  console.group(`%c[compareEmail] ${input}`, 'font-weight:bold');
+  try {
+    // FORMAT A -- exactly what CurrentUser.get('email') / getFullUserDetails.email yields.
+    const login  = await _resolveLoginName(input);
+    const spUser = await _ensureUser(login);
+    let profile = null;
+    try { profile = await _fetchProfile(login); }
+    catch (err) { console.warn('[compareEmail] profile fetch failed, using ensureUser email', { login, err }); }
+    const emailA   = profile?.Email || spUser.Email;
+    const sourceA  = profile?.Email ? 'UPS profile.Email' : 'ensureUser.Email (fallback)';
+
+    // FORMAT B -- what searchUsers exposes. Show every provider variant.
+    const { raw, normalized } = await debugSearchUsers(input);
+    const emailB    = normalized[0]?.EntityData?.Email ?? '';
+    const variantsB = [...new Set(raw.filter(r => r.IsResolved).map(r => r.EntityData?.Email).filter(Boolean))];
+
+    const exactEqual   = emailA === emailB;
+    const ciEqual      = emailA.toLowerCase() === emailB.toLowerCase();
+    const caseOnly     = !exactEqual && ciEqual;
+
+    console.table([
+      { format: 'A  CurrentUser/getFullUserDetails.email', email: emailA, len: emailA.length, from: sourceA },
+      { format: 'B  searchUsers EntityData.Email',         email: emailB, len: emailB.length, from: 'people-picker EntityData.Email' },
+    ]);
+    if (variantsB.length > 1) {
+      console.warn('searchUsers returns MULTIPLE email variants (provider-dependent):', variantsB);
+    }
+    if (!emailB && parseEmployeeId(login)) {
+      console.warn('FORMAT B email is EMPTY -- picker resolved by claims only. Keying on email will fail; use employeeId instead:', parseEmployeeId(login));
+    }
+
+    if (exactEqual) {
+      console.log('%cEXACT MATCH -- identical strings, no drift', 'color:#39d353;font-weight:bold');
+    } else if (caseOnly) {
+      console.warn('DIFFERS BY CASE ONLY. CAML Text `Eq` is case-INsensitive (would still match), but client-side JS === and some OData compares are case-sensitive (would miss).');
+    } else {
+      console.error('%cDIFFERENT STRINGS -- a query in one format will NEVER match rows stored in the other', 'color:#ff5555;font-weight:bold');
+    }
+
+    return {
+      user: login,
+      employeeId: parseEmployeeId(login),
+      emailA, emailB, variantsB,
+      exactEqual, caseInsensitiveEqual: ciEqual, differsByCaseOnly: caseOnly,
+    };
+  } catch (err) {
+    console.error('[compareEmail] failed', err);
+    throw err;
+  } finally {
+    console.groupEnd();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Console exposure
 // ---------------------------------------------------------------------------
 
 window.debugCurrentUser     = debugCurrentUser;
 window.debugSearchUsers     = debugSearchUsers;
 window.compareUserSources   = compareUserSources;
+window.compareEmail         = compareEmail;
 window.dumpProfileProperties = dumpProfileProperties;
 window.parseEmployeeId      = parseEmployeeId;
 window.decodeClaims         = decodeClaims;
 window.DebugUserError       = DebugUserError;
 
 console.log('[currentUser debug] loaded.');
+console.log('  await compareEmail(loginOrEmail?)        -- FORMAT A (CurrentUser) vs FORMAT B (searchUsers), byte-level');
 console.log('  await debugCurrentUser(loginOrEmail?)   -- full getFullUserDetails pipeline, raw + consolidated');
 console.log('  await debugSearchUsers(query, options?)  -- picker search, raw + normalized');
 console.log('  await compareUserSources(loginOrEmail?)  -- searchUsers vs getFullUserDetails, field by field');
