@@ -1,0 +1,11 @@
+
+[
+  { "date": "03/02/2026 15:42", "actor": "Ana Ferreira",  "type": "Submetido", "comment": "Redução de scrap na linha 3" },
+  { "date": "05/02/2026 11:20", "actor": "Rui Mentor",    "type": "Aprovado pelo Mentor" },
+  { "date": "18/02/2026 08:05", "actor": "Ana Ferreira",  "type": "Início de Execução" },
+  { "date": "14/04/2026 16:30", "actor": "Ana Ferreira",  "type": "Savings Submetidos para Validação do Mentor", "comment": "Poupança anual confirmada 24.500€" },
+  { "date": "16/04/2026 10:12", "actor": "Rui Mentor",    "type": "Validado pelo Mentor — Encaminhado ao Gestor" },
+  { "date": "20/04/2026 14:48", "actor": "Carla Gestora", "type": "Aprovado pelo Gestor" },
+  { "date": "24/04/2026 09:33", "actor": "Pedro MM",      "type": "Validado pela área financeira" },
+  { "date": "24/04/2026 09:34", "actor": "Sistema",       "type": "Implementado" }
+]
