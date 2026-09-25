@@ -157,6 +157,22 @@ function decodeClaims(loginName) {
   return { raw, claimsPrefix, domain, samAccountName, isClaims: raw.startsWith('i:') };
 }
 
+/**
+ * Claim-type of a login -- INFORMATIONAL ONLY. Windows, SAML/ADFS (trusted), and
+ * FBA (forms) are all valid real accounts; claim type is NOT a real/ghost signal.
+ */
+function _claimType(loginName) {
+  const s = String(loginName || '');
+  if (!s.startsWith('i:') && !s.startsWith('c:')) return 'non-claims';
+  const seg = (s.match(/^[ic]:([^|]*)\|/) || [])[1] || '';
+  if (seg.endsWith('.w')) return 'windows';
+  if (seg.endsWith('.f')) return 'forms-fba';
+  if (seg.endsWith('.t')) return 'trusted-saml';
+  if (seg.endsWith('.r')) return 'role';
+  if (s.startsWith('c:')) return 'sp-claim';
+  return 'other-claim';
+}
+
 function _buildSearchPayload(query, options = {}) {
   return {
     queryParams: {
@@ -422,9 +438,9 @@ export async function debugSearchUsers(query, options = {}) {
       IsResolved: r.IsResolved,
       EntityType: r.EntityType,
       PrincipalType: r.EntityData?.PrincipalType,
-      // AD-backed users carry a Windows claim (i:0#.w|); fabricated email entries
-      // (AllowEmailAddresses) carry a forms/membership claim (i:0#.f|) or the raw email.
-      adBacked: /^i:0#\.w\|/.test(String(r.Key)),
+      // Claim type is INFO only (windows/saml/fba are all valid real accounts).
+      // Real vs ghost = picker-resolvability (IsResolved), NOT the claim prefix.
+      claim: _claimType(r.Key),
       Provider: r.ProviderName,
       MultipleMatches: r.MultipleMatches?.length ?? 0,
     })));

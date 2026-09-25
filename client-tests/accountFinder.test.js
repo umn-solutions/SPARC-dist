@@ -175,7 +175,24 @@ function decodeClaims(loginName) {
 }
 
 const _sam = (login) => decodeClaims(login).sam.toLowerCase();
-const _adBacked = (key) => /^i:0#\.w\|/.test(String(key));
+/**
+ * Claim-type of a login -- INFORMATIONAL ONLY. Do NOT use to decide real vs ghost:
+ * this org uses Windows, SAML/ADFS (trusted), and FBA (forms) providers worldwide,
+ * so all of these are valid real accounts. The only reliable real-vs-ghost signal
+ * is picker-resolvability (the People Picker returns real directory principals;
+ * ghosts are residual UIL rows the picker never returns).
+ */
+const _claimType = (key) => {
+  const s = String(key || '');
+  if (!s.startsWith('i:') && !s.startsWith('c:')) return 'non-claims';
+  const seg = (s.match(/^[ic]:([^|]*)\|/) || [])[1] || '';
+  if (seg.endsWith('.w')) return 'windows';
+  if (seg.endsWith('.f')) return 'forms-fba';
+  if (seg.endsWith('.t')) return 'trusted-saml';
+  if (seg.endsWith('.r')) return 'role';
+  if (s.startsWith('c:')) return 'sp-claim';
+  return 'other-claim';
+};
 
 // ---------------------------------------------------------------------------
 // Source 1: People Picker
@@ -296,7 +313,7 @@ function _score(e) {
   if (e.office) s++;
   if (e.aliases?.length) s += e.aliases.length;
   if (e.siteUserId) s++;
-  if (e.adBacked) s += 2;
+  if (e.sources?.includes('picker')) s += 3; // picker-resolved = real directory principal (claim-agnostic)
   if (e.sources?.includes('ups')) s++;
   return s;
 }
@@ -339,7 +356,7 @@ export async function findAccounts(query, opts = {}) {
         const dc = decodeClaims(k);
         byKey.set(k, {
           key: k, sam: dc.sam, domain: dc.domain, provider: dc.claimsPrefix,
-          adBacked: _adBacked(k), sources: [],
+          claimType: _claimType(k), sources: [],
           email: '', displayName: '', siteUserId: null, principalType: '',
           entityType: '', department: '', office: '', country: '', ou: '',
           distinguishedName: '', aliases: [],
@@ -438,7 +455,8 @@ export async function findAccounts(query, opts = {}) {
       office: e.office,
       region_OU: e.ou,
       siteUserId: e.siteUserId,
-      adBacked: e.adBacked,
+      claim: e.claimType,
+      real: e.sources.includes('picker'), // picker-resolved = real directory principal
       sources: e.sources.join('+'),
     })));
     console.log('full objects:', entries);
@@ -475,10 +493,11 @@ export async function findAccounts(query, opts = {}) {
 
     // -- Summary guidance
     console.group('%c=> HOW TO READ THIS', 'color:#39d353;font-weight:bold');
-    console.log('Same sam + same domain, multiple Keys  -> duplicates/aliases: collapse to the suggested canonical.');
+    console.log('real=true (sources include "picker") -> a real directory principal (Windows/SAML/FBA -- claim type does NOT matter).');
+    console.log('real=false / sources = "uil" only     -> ghost/residual UIL row the picker never resolves.');
+    console.log('Same sam + same domain, multiple reals -> duplicates/aliases: collapse to the suggested canonical.');
     console.log('Same sam + DIFFERENT domain            -> distinct/regional accounts: keep separate (canonical per domain).');
-    console.log('Entry only in "uil" (not picker)        -> ghost/incomplete UIL row; often the residual one.');
-    console.log('adBacked=false                          -> not a Windows-claim AD principal; treat with suspicion.');
+    console.log('claim column is INFO only -- windows/saml/fba are all valid real accounts here.');
     console.groupEnd();
 
     return { query, entries, clusters };
@@ -507,19 +526,21 @@ function log(msg) { console.log(`%c• ${msg}`, 'color:#888'); }
 // ---------------------------------------------------------------------------
 
 /**
- * Gathers every principal (login) and email for a person across picker + UIL,
- * and the AD-backed (Windows-claim) candidates that are the only valid canonical
- * choices. Picker returns the real AD principal; UIL sweep surfaces ghost rows.
+ * Gathers every principal (login) and email for a person across picker + UIL.
+ * REAL accounts = everything the People Picker resolves (any claim type: Windows,
+ * SAML, FBA). GHOSTS = UIL rows the picker does NOT return (residual). Claim
+ * prefix is NOT used to decide real vs ghost.
  */
 async function _gatherIdentities(query) {
   const logins = new Set();
   const emails = new Set();
-  const adByKey = new Map();
+  const realByKey = new Map();  // picker-resolved principals = real, regardless of claim type
+  const uilLogins = new Set();
 
   const takePicker = (r) => {
     logins.add(r.Key);
     if (r.EntityData?.Email) emails.add(r.EntityData.Email.toLowerCase());
-    if (_adBacked(r.Key)) adByKey.set(r.Key, r);
+    realByKey.set(r.Key, r);
   };
 
   const seed = await _pickerSearch(query);
@@ -530,22 +551,28 @@ async function _gatherIdentities(query) {
   if (_looksLikeClaims(query)) sams.add(_sam(query));
   for (const sam of sams) (await _pickerSearch(sam)).forEach(takePicker);
 
-  // UIL sweep -- surfaces ghost logins the picker never returns
+  // UIL sweep -- surfaces rows the picker never returns
   const rows = [];
   for (const e of emails) rows.push(...await _uilByFilter(`Email eq '${_escOData(e)}'`));
   for (const sam of sams) rows.push(...await _uilByFilter(`substringof('${_escOData(sam)}',LoginName)`));
   for (const u of rows) {
     if (u.PrincipalType != null && u.PrincipalType !== 1) continue;
     logins.add(u.LoginName);
+    uilLogins.add(u.LoginName);
     if (u.Email) emails.add(u.Email.toLowerCase());
   }
 
-  return { logins: [...logins], emails: [...emails], adAccounts: [...adByKey.values()] };
+  const realAccounts = [...realByKey.values()];
+  const realKeys = new Set(realByKey.keys());
+  const ghostLogins = [...uilLogins].filter(l => !realKeys.has(l)); // UIL rows the picker did not resolve
+
+  return { logins: [...logins], emails: [...emails], realAccounts, ghostLogins };
 }
 
-function _pickAdCanonical(adAccounts) {
-  if (!adAccounts.length) return null;
-  return [...adAccounts].sort((a, b) => {
+/** Deterministic canonical among picker-resolved (real) accounts. Claim-agnostic. */
+function _pickReal(realAccounts) {
+  if (!realAccounts.length) return null;
+  return [...realAccounts].sort((a, b) => {
     const ae = a.EntityData?.Email ? 1 : 0;
     const be = b.EntityData?.Email ? 1 : 0;
     if (ae !== be) return be - ae;
@@ -554,30 +581,31 @@ function _pickAdCanonical(adAccounts) {
 }
 
 /**
- * Sure-proof canonical resolution: returns the Windows-claim AD account the
- * picker exposes (never a UIL ghost). Warns when AD accounts span multiple
- * domains (likely distinct/regional -- do NOT merge) or when none is AD-backed.
+ * Sure-proof canonical resolution: returns the account the People Picker resolves
+ * (a real directory principal -- Windows, SAML, or FBA -- never a UIL ghost).
+ * Warns when the picker resolves accounts across multiple domains (likely
+ * distinct/regional -- do NOT merge) or when the picker resolves nothing.
  *
  * @param {string} query - email / sam / name / login.
  */
 export async function resolveUser(query) {
   console.group(`%c[resolveUser] "${query}"`, 'font-weight:bold');
   try {
-    const { adAccounts } = await _gatherIdentities(query);
-    if (!adAccounts.length) {
-      console.error('NO AD-backed (i:0#.w|) account found via picker. Only ghost/UIL entries exist, or the query does not resolve. This person has no authenticatable AD identity from this query.');
-      return { canonical: null, adAccounts: [] };
+    const { realAccounts } = await _gatherIdentities(query);
+    if (!realAccounts.length) {
+      console.error('Picker resolves NO account for this query. Only residual UIL rows exist, or the query does not match a directory principal. Try the person\'s email / samAccountName / full name.');
+      return { canonical: null, realAccounts: [] };
     }
-    const domains = [...new Set(adAccounts.map(r => decodeClaims(r.Key).domain))];
+    const domains = [...new Set(realAccounts.map(r => decodeClaims(r.Key).domain))];
     if (domains.length > 1) {
-      console.warn('MULTIPLE AD accounts across domains -> likely DISTINCT/regional accounts. Not merging. Candidates:', domains);
-      console.table(adAccounts.map(r => ({ Key: r.Key, domain: decodeClaims(r.Key).domain, email: r.EntityData?.Email, name: r.DisplayText })));
-      return { canonical: null, adAccounts, ambiguous: true, domains };
+      console.warn('Picker resolves accounts across MULTIPLE domains -> likely DISTINCT/regional accounts. Not merging. Candidates:', domains);
+      console.table(realAccounts.map(r => ({ Key: r.Key, claim: _claimType(r.Key), domain: decodeClaims(r.Key).domain, email: r.EntityData?.Email, name: r.DisplayText })));
+      return { canonical: null, realAccounts, ambiguous: true, domains };
     }
-    const c = _pickAdCanonical(adAccounts);
-    const canonical = { key: c.Key, ...decodeClaims(c.Key), email: c.EntityData?.Email || '', name: c.DisplayText || '' };
-    console.log('%cCANONICAL (AD-backed, picker) =', 'color:#39d353;font-weight:bold', canonical);
-    return { canonical, adAccounts };
+    const c = _pickReal(realAccounts);
+    const canonical = { key: c.Key, claim: _claimType(c.Key), ...decodeClaims(c.Key), email: c.EntityData?.Email || '', name: c.DisplayText || '' };
+    console.log('%cCANONICAL (picker-resolved) =', 'color:#39d353;font-weight:bold', canonical);
+    return { canonical, realAccounts };
   } catch (err) {
     console.error('[resolveUser] failed', err);
     throw err;
@@ -618,14 +646,14 @@ export async function checkGroup(query, groupTitle) {
   if (!groupTitle) throw new AccountFinderError('Validation', 'checkGroup: groupTitle required.');
   console.group(`%c[checkGroup] "${query}" in "${groupTitle}"`, 'font-weight:bold');
   try {
-    const { logins, emails, adAccounts } = await _gatherIdentities(query);
-    const c = _pickAdCanonical(adAccounts);
+    const { logins, emails, realAccounts } = await _gatherIdentities(query);
+    const c = _pickReal(realAccounts);
     const canonicalKey = c?.Key ?? null;
 
-    console.log('canonical AD account:', canonicalKey ?? '(none)');
+    console.log('canonical (picker-resolved) account:', canonicalKey ?? '(none)', canonicalKey ? `[${_claimType(canonicalKey)}]` : '');
     console.log('all principals checked:', { logins, emails });
 
-    // ENFORCED: canonical AD account only
+    // ENFORCED: canonical account only
     const enforcedRows = canonicalKey ? await _groupMembers(groupTitle, { logins: [canonicalKey] }) : [];
     const enforced = enforcedRows.length > 0;
 
@@ -644,7 +672,7 @@ export async function checkGroup(query, groupTitle) {
         Key: r.LoginName,
         email: r.Email,
         name: r.Title,
-        adBacked: _adBacked(r.LoginName),
+        claim: _claimType(r.LoginName),
         isCanonical: r.LoginName === canonicalKey,
       })));
     }
@@ -686,8 +714,9 @@ async function _userIdByLogin(login) {
 
 /**
  * Compares _spPageContextInfo (the JS global) against /_api/web/currentUser
- * (server-resolved from the auth token). Shows whether the session principal is
- * an AD Windows-claim account or a non-canonical "wrong" one.
+ * (server-resolved from the auth token) and reports the session's claim type.
+ * NOTE: claim type (windows/saml/fba) does NOT indicate "wrong" -- all are valid
+ * providers here. What matters is that this IS the enforced session principal.
  */
 export async function whoAmI() {
   console.group('%c[whoAmI]', 'font-weight:bold');
@@ -700,12 +729,10 @@ export async function whoAmI() {
       { field: 'Email',     spPageContextInfo: ctx.userEmail,     currentUser_REST: cur.Email,     match: (ctx.userEmail || '').toLowerCase() === (cur.Email || '').toLowerCase() },
       { field: 'Title',     spPageContextInfo: ctx.userDisplayName, currentUser_REST: cur.Title,   match: '' },
     ]);
-    const adBacked = _adBacked(cur.LoginName);
-    console.log('session claims login:', cur.LoginName, '| adBacked (Windows claim)?', adBacked);
-    if (!adBacked) {
-      console.warn('SESSION IS NOT an AD Windows-claim account. You are authenticated as a non-canonical principal. SharePoint enforces access as THIS principal -- not the "real" account.');
-    }
-    return { ctx, currentUser: cur, adBacked };
+    const claim = _claimType(cur.LoginName);
+    console.log('session claims login:', cur.LoginName, '| claim type:', claim);
+    console.log('This is the principal SharePoint enforces access as, regardless of claim type. myGroups() lists its actual groups.');
+    return { ctx, currentUser: cur, claim };
   } catch (err) {
     console.error('[whoAmI] failed', err);
     throw err;
@@ -725,7 +752,7 @@ export async function myGroups() {
   try {
     const cur = await _restCurrentUser();
     const groups = await _restCurrentUserGroups();
-    console.log('session principal:', { LoginName: cur.LoginName, Id: cur.Id, Email: cur.Email, adBacked: _adBacked(cur.LoginName) });
+    console.log('session principal:', { LoginName: cur.LoginName, Id: cur.Id, Email: cur.Email, claim: _claimType(cur.LoginName) });
     console.table(groups.map(g => ({ Id: g.Id, Title: g.Title, Description: g.Description })));
     console.log('%cThis is resolved server-side from your auth token -- the sure-proof answer to "what groups am I in", and what SharePoint actually enforces.', 'color:#39d353;font-weight:bold');
     return { principal: cur, groups };
@@ -766,7 +793,7 @@ export async function sessionVsRealGroups(query) {
 
     const sTitles = new Set(sessionGroups.map(g => g.Title));
     const rTitles = new Set(realGroups.map(g => g.Title));
-    console.log('SESSION principal:', cur.LoginName, '| adBacked:', _adBacked(cur.LoginName));
+    console.log('SESSION principal:', cur.LoginName, '| claim:', _claimType(cur.LoginName));
     console.log('REAL (canonical AD) principal:', canonical?.key ?? '(unresolved)');
     console.group('session groups (enforced)'); console.table(sessionGroups.map(g => ({ Title: g.Title }))); console.groupEnd();
     console.group('real-account groups'); console.table(realGroups.map(g => ({ Title: g.Title }))); console.groupEnd();
@@ -828,7 +855,7 @@ async function _clusterSiteUsers(clusterBy = 'email', maxPages = 20) {
       key: u.LoginName, sam: dc.sam, domain: dc.domain,
       email: (u.Email || '').toLowerCase(), name: (u.Title || '').trim(),
       nameLower: (u.Title || '').trim().toLowerCase(),
-      siteUserId: u.Id, adBacked: _adBacked(u.LoginName),
+      siteUserId: u.Id, claimType: _claimType(u.LoginName),
     };
   });
 
@@ -840,39 +867,38 @@ async function _clusterSiteUsers(clusterBy = 'email', maxPages = 20) {
     map.get(k).push(e);
   }
 
+  // Phase-1 is siteUsers-only -- NO picker, so it CANNOT decide real vs ghost
+  // (claim type is not a real/ghost signal here). It only flags candidates:
+  // a person with >1 UIL row, or spanning >1 domain, needs the deep picker check.
   const clusters = [...map.entries()].map(([k, es]) => {
-    const ad = es.filter(e => e.adBacked);
-    const adDomains = [...new Set(ad.map(e => e.domain))];
-    let verdict;
-    if (ad.length === 1) verdict = es.length > 1 ? 'RESOLVABLE (dupes)' : 'CLEAN';
-    else if (ad.length === 0) verdict = 'UNRESOLVABLE (ghost)';
-    else verdict = adDomains.length > 1 ? 'UNRESOLVABLE (multi-domain)' : 'AMBIGUOUS (multi same-domain)';
-    return { person: k, count: es.length, adCount: ad.length, adDomains, verdict, entries: es };
+    const domains = [...new Set(es.map(e => e.domain).filter(Boolean))];
+    const claims = [...new Set(es.map(e => e.claimType))];
+    const suspect = es.length > 1 || domains.length > 1;
+    const verdict = suspect ? 'CANDIDATE (needs deep check)' : 'single UIL row';
+    return { person: k, count: es.length, domains, claims, suspect, verdict, entries: es };
   });
 
   return { total: users.length, clusters };
 }
 
 /**
- * Scans the ENTIRE site user list (/_api/web/siteusers), clusters people, and
- * flags those whose accounts CANNOT be cleanly resolved to a single AD identity.
- * No input list needed -- the site provides the population (and it is where
- * ghost/duplicate rows live). Cheap: pure paging + client-side clustering, no
- * per-user picker calls.
+ * Scans the ENTIRE site user list (/_api/web/siteusers) and clusters people.
+ * PHASE-1 ONLY: no picker, so it CANNOT decide real vs ghost (claim type is not a
+ * real/ghost signal -- this org uses Windows, SAML, and FBA). It only flags
+ * CANDIDATES: a person with more than one UIL row, or spanning more than one
+ * domain, that warrant the deep picker check. For the definitive verdict run
+ * auditSiteUsers(). Cheap: pure paging + client-side clustering.
  *
- * Verdicts per person cluster:
- *   CLEAN                 - one AD account, one entry
- *   RESOLVABLE (dupes)    - one AD account + extra ghost rows (collapse to canonical)
- *   UNRESOLVABLE (ghost)  - zero AD-backed accounts (no Windows-claim anchor)
- *   UNRESOLVABLE (multi)  - multiple AD accounts across domains (distinct/regional?)
- *   AMBIGUOUS (multi)     - multiple AD accounts, same domain
+ * Verdicts per cluster:
+ *   single UIL row              - one entry (usually fine; deep check optional)
+ *   CANDIDATE (needs deep check) - >1 UIL row or >1 domain -> confirm with auditSiteUsers
  *
  * @param {object} [opts]
  * @param {'email'|'name'|'sam'} [opts.clusterBy='email'] - what groups a person's entries.
  *   email: safest (shared address). name/sam: catches accounts with different emails
  *   (e.g. one person, two regional accounts) but risks homonym false-merges.
  * @param {number}  [opts.maxPages=20]  - paging cap (500 users/page).
- * @param {boolean} [opts.onlyProblems=true] - show only unresolvable/ambiguous/dupe clusters.
+ * @param {boolean} [opts.onlyProblems=true] - show only candidate (multi-row/multi-domain) clusters.
  */
 export async function scanSiteUsers(opts = {}) {
   const { clusterBy = 'email', maxPages = 20, onlyProblems = true } = opts;
@@ -881,23 +907,22 @@ export async function scanSiteUsers(opts = {}) {
     const { total, clusters } = await _clusterSiteUsers(clusterBy, maxPages);
     console.log(`fetched ${total} user principals from siteUsers`);
 
-    const problems = clusters.filter(c => c.verdict !== 'CLEAN' && (c.count > 1 || c.adCount !== 1));
-    console.log(`clusters: ${clusters.length} | problem clusters: ${problems.length}`);
+    const problems = clusters.filter(c => c.suspect);
+    console.log(`clusters: ${clusters.length} | candidate clusters (multi-row / multi-domain): ${problems.length}`);
 
     const show = (onlyProblems ? problems : clusters).sort((a, b) => b.count - a.count);
-    console.group(`%c${onlyProblems ? 'PROBLEM' : 'ALL'} clusters (${show.length})`, 'color:#e0a030;font-weight:bold');
-    console.table(show.map(c => ({ person: c.person, entries: c.count, adAccounts: c.adCount, domains: c.adDomains.join(',') || '-', verdict: c.verdict })));
+    console.group(`%c${onlyProblems ? 'CANDIDATE' : 'ALL'} clusters (${show.length})`, 'color:#e0a030;font-weight:bold');
+    console.table(show.map(c => ({ person: c.person, entries: c.count, domains: c.domains.join(',') || '-', claims: c.claims.join(','), verdict: c.verdict })));
     for (const c of show) {
-      console.groupCollapsed(`${c.person}  --  ${c.verdict}  (${c.count} entr., ${c.adCount} AD)`);
-      console.table(c.entries.map(e => ({ Key: e.key, domain: e.domain, email: e.email, name: e.name, sam: e.sam, adBacked: e.adBacked, siteUserId: e.siteUserId })));
+      console.groupCollapsed(`${c.person}  --  ${c.verdict}  (${c.count} entr.)`);
+      console.table(c.entries.map(e => ({ Key: e.key, domain: e.domain, email: e.email, name: e.name, sam: e.sam, claim: e.claimType, siteUserId: e.siteUserId })));
       console.groupEnd();
     }
     console.groupEnd();
 
     console.group('%c=> READ', 'color:#39d353;font-weight:bold');
-    console.log('UNRESOLVABLE (multi-domain): likely distinct/regional -- or a live account + a dead-domain dupe. Judge by domain.');
-    console.log('UNRESOLVABLE (ghost): no Windows-claim account in this cluster -- only residual UIL rows.');
-    console.log('RESOLVABLE (dupes): one real AD account + ghosts to clean up.');
+    console.warn('scanSiteUsers is PHASE-1 ONLY (no picker) -- it CANNOT tell real from ghost. It flags CANDIDATES (people with >1 UIL row or spanning domains). Claim type (windows/saml/fba) is shown for info, NOT as a real/ghost signal.');
+    console.log('For the definitive verdict (picker-resolved real accounts + ghost detection), run auditSiteUsers().');
     console.log('Tip: re-run with { clusterBy:\"sam\" } or { clusterBy:\"name\" } to catch people whose accounts have DIFFERENT emails.');
     console.groupEnd();
 
@@ -930,11 +955,11 @@ export async function findMany(queries, opts = {}) {
   try {
     const results = [];
     for (const q of list) {
-      const { canonical, adAccounts, ambiguous } = await resolveUser(q);
+      const { canonical, realAccounts, ambiguous } = await resolveUser(q);
       results.push({
         query: q,
         canonical: canonical?.key ?? null,
-        adAccounts: adAccounts?.length ?? 0,
+        realAccounts: realAccounts?.length ?? 0,
         ambiguous: !!ambiguous,
         resolvable: !!canonical && !ambiguous,
       });
@@ -981,8 +1006,8 @@ export async function auditSiteUsers(opts = {}) {
   try {
     log('phase 1: scanning siteUsers (cheap)...');
     const { total, clusters } = await _clusterSiteUsers(clusterBy, maxPages);
-    const problems = clusters.filter(c => c.verdict !== 'CLEAN' && (c.count > 1 || c.adCount !== 1));
-    log(`${total} users -> ${clusters.length} people -> ${problems.length} flagged in phase 1`);
+    const problems = clusters.filter(c => c.suspect);
+    log(`${total} users -> ${clusters.length} people -> ${problems.length} candidates flagged in phase 1`);
 
     let candidates = deep === 'all' ? clusters : deep === 'none' ? [] : problems;
     if (candidates.length > maxPeople) {
@@ -995,9 +1020,7 @@ export async function auditSiteUsers(opts = {}) {
     let i = 0;
     for (const c of candidates) {
       i++;
-      const seed = c.entries.find(e => e.email)?.email
-        || c.entries.find(e => e.adBacked)?.key
-        || c.entries[0].key;
+      const seed = c.entries.find(e => e.email)?.email || c.entries[0].key;
       let deepRes;
       try {
         deepRes = await _gatherIdentities(seed);
@@ -1005,32 +1028,33 @@ export async function auditSiteUsers(opts = {}) {
         console.warn('[auditSiteUsers] deep resolve failed, skipping', { seed, err });
         continue;
       }
-      const ad = deepRes.adAccounts;
-      const adDomains = [...new Set(ad.map(r => decodeClaims(r.Key).domain))];
-      const ghostLogins = deepRes.logins.filter(l => !_adBacked(l));
+      const real = deepRes.realAccounts;                              // picker-resolved = real (any claim type)
+      const realDomains = [...new Set(real.map(r => decodeClaims(r.Key).domain))];
+      const ghostLogins = deepRes.ghostLogins;                        // UIL rows the picker did NOT resolve
 
       let verdict, severity;
-      if (adDomains.length > 1)      { verdict = 'MULTI-DOMAIN AD (distinct/regional or dead-domain dup)'; severity = 'high'; }
-      else if (ad.length === 0)      { verdict = 'NO AD ANCHOR (ghost-only)'; severity = 'high'; }
-      else if (ad.length > 1)        { verdict = 'MULTIPLE AD same-domain'; severity = 'med'; }
-      else if (ghostLogins.length)   { verdict = 'resolvable + ghosts to clean'; severity = 'low'; }
-      else                           { verdict = 'clean (deep)'; severity = 'none'; }
+      if (real.length === 0)          { verdict = 'UNRESOLVABLE (picker resolves nothing)'; severity = 'high'; }
+      else if (realDomains.length > 1){ verdict = 'MULTIPLE real accounts across domains (regional or dead-domain dup)'; severity = 'high'; }
+      else if (real.length > 1)       { verdict = 'MULTIPLE real accounts same-domain'; severity = 'med'; }
+      else if (ghostLogins.length)    { verdict = 'resolvable + ghost UIL rows to clean'; severity = 'low'; }
+      else                            { verdict = 'clean (deep)'; severity = 'none'; }
 
       let region;
-      if (enrich && ad.length) {
+      if (enrich && real.length) {
         region = [];
-        for (const r of ad) {
+        for (const r of real) {
           const p = await _ups(r.Key);
-          if (p) region.push({ key: r.Key, ..._regionHints(_profileProps(p)) });
+          if (p) region.push({ key: r.Key, claim: _claimType(r.Key), ..._regionHints(_profileProps(p)) });
         }
       }
 
       if (severity !== 'none') {
         issues.push({
           person: c.person, phase1: c.verdict, verdict, severity,
-          adCount: ad.length, domains: adDomains.join(',') || '-',
+          realCount: real.length, domains: realDomains.join(',') || '-',
+          claims: [...new Set(real.map(r => _claimType(r.Key)))].join(','),
           principals: deepRes.logins.length, ghosts: ghostLogins.length,
-          adKeys: ad.map(r => r.Key), emails: deepRes.emails, region,
+          realKeys: real.map(r => r.Key), emails: deepRes.emails, region,
         });
       }
       if (i % 10 === 0) log(`  ...${i}/${candidates.length}`);
@@ -1042,7 +1066,7 @@ export async function auditSiteUsers(opts = {}) {
     console.group(`%c=> ISSUES (${issues.length})`, 'color:#e0a030;font-weight:bold');
     console.table(issues.map(r => ({
       person: r.person, severity: r.severity, verdict: r.verdict,
-      adCount: r.adCount, domains: r.domains, principals: r.principals, ghosts: r.ghosts,
+      realAccounts: r.realCount, domains: r.domains, claims: r.claims, principals: r.principals, ghosts: r.ghosts,
     })));
     for (const r of issues) {
       console.groupCollapsed(`[${r.severity}] ${r.person} -- ${r.verdict}`);
@@ -1088,10 +1112,10 @@ console.log('[accountFinder] loaded.');
 console.log('  await findAccounts(email|sam|name|login, { uil?, enrich?, maxEnrich? })');
 console.log('    -- sweeps People Picker + site UIL + UPS profile; clusters by sam, sub-groups by domain');
 console.log('  await resolveUser(email|sam|name|login)');
-console.log('    -- sure-proof canonical: the Windows-claim AD account (never a UIL ghost)');
+console.log('    -- sure-proof canonical: the picker-resolved account (Windows/SAML/FBA), never a UIL ghost');
 console.log('  await checkGroup(email|sam|name|login, groupTitle)');
 console.log('    -- ENFORCED (canonical AD in group = real access) vs INTENT (any principal); shows who holds the grant');
-console.log('  await whoAmI()              -- _spPageContextInfo vs /_api/web/currentUser; is the session an AD account?');
+console.log('  await whoAmI()              -- _spPageContextInfo vs /_api/web/currentUser; session identity + claim type');
 console.log('  await myGroups()            -- SURE-PROOF groups for THIS session (/_api/web/currentUser/groups)');
 console.log('  await sessionVsRealGroups() -- access gap: session groups vs the real AD account groups');
 console.log('  await scanSiteUsers({ clusterBy?, maxPages?, onlyProblems? })');
