@@ -165,7 +165,10 @@ function _buildSearchPayload(query, options = {}) {
       MaximumEntitySuggestions: options.maximumSuggestions ?? 10,
       PrincipalType:           options.principalType ?? 1,
       PrincipalSource:         options.principalSource ?? 15,
-      AllowEmailAddresses:     true,
+      // Mirror deployed framework: default off so the server does not fabricate
+      // a resolved entry for arbitrary emails (e.g. dummy@dummy.com). Pass
+      // { allowEmailAddresses: true } to inspect the old fabrication behavior.
+      AllowEmailAddresses:     options.allowEmailAddresses ?? false,
       AllowMultipleEntities:   true,
       SharePointGroupID:       0,
     },
@@ -418,6 +421,10 @@ export async function debugSearchUsers(query, options = {}) {
       Email: r.EntityData?.Email,
       IsResolved: r.IsResolved,
       EntityType: r.EntityType,
+      PrincipalType: r.EntityData?.PrincipalType,
+      // AD-backed users carry a Windows claim (i:0#.w|); fabricated email entries
+      // (AllowEmailAddresses) carry a forms/membership claim (i:0#.f|) or the raw email.
+      adBacked: /^i:0#\.w\|/.test(String(r.Key)),
       Provider: r.ProviderName,
       MultipleMatches: r.MultipleMatches?.length ?? 0,
     })));
@@ -702,9 +709,198 @@ export async function diagnoseEmailMismatch(loginNameOrEmail) {
 }
 
 // ---------------------------------------------------------------------------
+// Public: group-resolution / access-level diagnostic
+// ---------------------------------------------------------------------------
+
+/**
+ * Explains why `CurrentUser.accessLevel` / `.group` may be null while
+ * `get('groups')` is correct. Group resolution checks membership via an
+ * `Email eq` filter on the UIL Email column. This tests EACH candidate email
+ * (session, picker, UPS, UIL) against each hierarchy group so you can see which
+ * email SharePoint's membership filter actually matches -- and whether the email
+ * CurrentUser uses (session || picker) matches anything.
+ *
+ * @param {string|string[]} groupTitles - The `groupTitle` values from your hierarchy.
+ */
+export async function debugGroupResolution(groupTitles) {
+  const titles = [].concat(groupTitles ?? []).filter(Boolean);
+  if (!titles.length) {
+    console.warn('[debugGroupResolution] pass your hierarchy group titles, e.g. debugGroupResolution(["Site Owners","Members"])');
+    return;
+  }
+  console.group('%c[debugGroupResolution]', 'font-weight:bold');
+  try {
+    const login = await _resolveLoginName(_sessionLogin());
+    const [spUser, profile, picker] = await Promise.all([
+      _ensureUser(login),
+      _fetchProfile(login).catch(err => { console.warn('[debugGroupResolution] profile fetch failed', { login, err }); return null; }),
+      _pickerIdentity(login),
+    ]);
+
+    const candidates = {
+      sessionEmail: _sessionEmail() || '',        // _spPageContextInfo.userEmail
+      pickerEmail:  picker?.email || '',           // == deployed CurrentUser.get('email')
+      upsEmail:     profile?.Email || '',
+      uilEmail:     spUser.Email || '',
+    };
+    // Exactly what CurrentUser.initialize uses for group resolution today:
+    const groupEmailUsed = candidates.sessionEmail || candidates.pickerEmail;
+
+    console.log('candidate emails:', candidates);
+    console.log('%cemail CurrentUser uses for groups (session || picker):', 'font-weight:bold', groupEmailUsed || '(EMPTY)');
+
+    const isMember = async (title, email) => {
+      if (!email) return '(empty)';
+      const selector = `getbyname('${encodeURIComponent(title.replace(/'/g, "''"))}')`;
+      const filter = encodeURIComponent(`Email eq '${email.replace(/'/g, "''")}'`);
+      const url = `${_webUrl()}/_api/web/sitegroups/${selector}/users?$filter=${filter}&$select=Id,LoginName,Title,Email`;
+      try {
+        return _unwrapCollection(_unwrapD(await _spGet(url))).length > 0;
+      } catch (err) {
+        console.warn('[debugGroupResolution] membership query failed', { title, email, err });
+        return 'ERR';
+      }
+    };
+
+    const rows = [];
+    for (const title of titles) {
+      const row = { group: title };
+      for (const [k, email] of Object.entries(candidates)) row[k] = await isMember(title, email);
+      rows.push(row);
+    }
+    console.table(rows);
+
+    const matchedWithUsed = [];
+    for (const title of titles) if ((await isMember(title, groupEmailUsed)) === true) matchedWithUsed.push(title);
+
+    console.group('%c=> VERDICT', 'color:#39d353;font-weight:bold');
+    console.log('groups matched with the email CurrentUser uses:', matchedWithUsed);
+    if (!matchedWithUsed.length) {
+      console.error('accessLevel would be NULL. The email CurrentUser uses matches NO group. Look at the table: whichever column shows `true` is the email group resolution SHOULD use (likely uilEmail/upsEmail, not pickerEmail).');
+    } else {
+      console.log('accessLevel would resolve here. If the live app still sees null, the deployed bundle differs from this test.');
+    }
+    console.groupEnd();
+
+    return { candidates, groupEmailUsed, rows, matchedWithUsed };
+  } catch (err) {
+    console.error('[debugGroupResolution] failed', err);
+    throw err;
+  } finally {
+    console.groupEnd();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public: identity canonicalization diagnostic
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministically picks ONE canonical entry from a cluster of picker results
+ * for the same person. Ordering (stable, caller-independent):
+ *   1. entries WITH an email beat entries without
+ *   2. richer entry (higher _scoreResult) wins
+ *   3. tiebreak: lexicographically smallest Key
+ * Same cluster in -> same pick out, regardless of which email was searched.
+ */
+function _pickCanonical(cluster) {
+  if (!cluster.length) return null;
+  return [...cluster].sort((a, b) => {
+    const ae = a.EntityData?.Email ? 1 : 0;
+    const be = b.EntityData?.Email ? 1 : 0;
+    if (ae !== be) return be - ae;
+    const as = _scoreResult(a);
+    const bs = _scoreResult(b);
+    if (as !== bs) return bs - as;
+    return String(a.Key).localeCompare(String(b.Key));
+  })[0];
+}
+
+/** Enumerate the full account cluster reachable from a seed query via samAccountName. */
+async function _clusterFor(seedQuery) {
+  const { parsed: seed } = await _rawSearch(seedQuery, { maximumSuggestions: 30 });
+  const seedResolved = seed.filter(r => r.IsResolved);
+  const sams = [...new Set(seedResolved.map(r => parseEmployeeId(r.Key).toLowerCase()).filter(Boolean))];
+  const byKey = new Map();
+  for (const sam of sams) {
+    const { parsed } = await _rawSearch(sam, { maximumSuggestions: 50 });
+    for (const r of parsed.filter(x => x.IsResolved)) byKey.set(r.Key, r);
+  }
+  return { sams, cluster: [...byKey.values()] };
+}
+
+/**
+ * The canonicalization test. For a person, enumerates ALL their accounts (joined
+ * by samAccountName), picks a deterministic canonical entry, then verifies that
+ * searching by EVERY email in the cluster re-converges to the SAME canonical
+ * entity. This is the "resolve to the same entity always" guarantee check.
+ *
+ * @param {string} [input] - Any email or login of the person. Defaults to session user.
+ */
+export async function canonicalEntity(input) {
+  const seed = input ?? _sessionEmail() ?? _sessionLogin();
+  console.group(`%c[canonicalEntity] ${seed}`, 'font-weight:bold');
+  try {
+    const { sams, cluster } = await _clusterFor(seed);
+    console.log('samAccountName join key(s):', sams);
+    console.group(`%caccount cluster (${cluster.length})`, 'color:#4ea1ff');
+    console.table(cluster.map(r => ({
+      Key: r.Key,
+      sam: parseEmployeeId(r.Key),
+      email: r.EntityData?.Email ?? '',
+      name: r.DisplayText,
+      provider: r.ProviderName,
+      type: r.EntityType,
+      score: _scoreResult(r),
+    })));
+    console.groupEnd();
+
+    if (sams.length > 1) {
+      console.warn('MORE THAN ONE samAccountName in cluster -- accounts do NOT share a single join key. Deterministic merge by sam is not possible for these; a manual alias->canonical map would be required.', sams);
+    }
+
+    const canonical = _pickCanonical(cluster);
+    console.log('%cCANONICAL pick:', 'color:#39d353;font-weight:bold',
+      canonical ? { Key: canonical.Key, email: canonical.EntityData?.Email, name: canonical.DisplayText } : null);
+
+    // Convergence: does starting from each email land on the same canonical Key?
+    const emails = [...new Set(cluster.map(r => r.EntityData?.Email).filter(Boolean))];
+    const conv = [];
+    for (const e of emails) {
+      const { cluster: c2 } = await _clusterFor(e);
+      const pick = _pickCanonical(c2);
+      conv.push({
+        searchedEmail: e,
+        resolvesToKey: pick?.Key ?? '(none)',
+        resolvesToEmail: pick?.EntityData?.Email ?? '(none)',
+        sameAsCanonical: pick?.Key === canonical?.Key,
+      });
+    }
+    console.group('%c=> CONVERGENCE (search each email -> canonical)', 'color:#39d353;font-weight:bold');
+    console.table(conv);
+    const allConverge = conv.length > 0 && conv.every(c => c.sameAsCanonical);
+    if (allConverge) {
+      console.log('%cCONVERGES -- every email resolves to the same entity. samAccountName join works.', 'color:#39d353;font-weight:bold');
+    } else {
+      console.error('DIVERGES -- some emails resolve to a different entity. Inspect the table: the sam join key is insufficient for this person.');
+    }
+    console.groupEnd();
+
+    return { seed, sams, cluster, canonical, convergence: conv, allConverge };
+  } catch (err) {
+    console.error('[canonicalEntity] failed', err);
+    throw err;
+  } finally {
+    console.groupEnd();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Console exposure
 // ---------------------------------------------------------------------------
 
+window.canonicalEntity      = canonicalEntity;
+window.debugGroupResolution = debugGroupResolution;
 window.diagnoseEmailMismatch = diagnoseEmailMismatch;
 window.debugCurrentUser     = debugCurrentUser;
 window.debugSearchUsers     = debugSearchUsers;
@@ -716,6 +912,7 @@ window.decodeClaims         = decodeClaims;
 window.DebugUserError       = DebugUserError;
 
 console.log('[currentUser debug] loaded.');
+console.log('  await canonicalEntity(loginOrEmail?)     -- enumerate one account cluster + prove every email resolves to ONE entity');
 console.log('  await diagnoseEmailMismatch(loginOrEmail?) -- WHY A and B differ: both picker queries + which principal each hits');
 console.log('  await compareEmail(loginOrEmail?)        -- FORMAT A (CurrentUser) vs FORMAT B (searchUsers), byte-level');
 console.log('  await debugCurrentUser(loginOrEmail?)   -- full getFullUserDetails pipeline, raw + consolidated');
