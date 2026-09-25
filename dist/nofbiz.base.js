@@ -3394,7 +3394,7 @@ function _buildSearchPayload(query, options) {
             MaximumEntitySuggestions: options.maximumSuggestions ?? 10,
             PrincipalType: options.principalType ?? 1,
             PrincipalSource: options.principalSource ?? 15,
-            AllowEmailAddresses: true,
+            AllowEmailAddresses: options.allowEmailAddresses ?? false,
             AllowMultipleEntities: true,
             SharePointGroupID: 0
         }
@@ -3422,7 +3422,7 @@ function _scoreResult(r) {
     return score;
 }
 
-function _normalizeResults(results) {
+function _normalizeResults(results, allowEmailAddresses) {
     const flat = [];
     for (const r of results) {
         flat.push(r);
@@ -3431,8 +3431,20 @@ function _normalizeResults(results) {
         }
     }
     const resolved = flat.filter(r => r.IsResolved === true);
+    let filtered = resolved;
+    if (!allowEmailAddresses) {
+        const before = resolved.length;
+        filtered = resolved.filter(r => !parseEmployeeId(r.Key).includes("@"));
+        const dropped = before - filtered.length;
+        if (dropped > 0) {
+            console.warn("[searchUsers] dropped fabricated email-address result(s)", {
+                count: dropped,
+                keys: resolved.filter(r => parseEmployeeId(r.Key).includes("@")).map(r => r.Key)
+            });
+        }
+    }
     const map = new Map;
-    for (const r of resolved) {
+    for (const r of filtered) {
         const rawKey = r.EntityData?.Email || parseEmployeeId(r.Key);
         const key = rawKey.toLowerCase();
         if (!key) {
@@ -3551,6 +3563,17 @@ async function _resolvePickerIdentity(normalizedLogin) {
     }
 }
 
+function _pickCanonical(cluster) {
+    return [ ...cluster ].sort((a, b) => {
+        const aHasEmail = a.EntityData?.Email ? 1 : 0;
+        const bHasEmail = b.EntityData?.Email ? 1 : 0;
+        if (bHasEmail !== aHasEmail) return bHasEmail - aHasEmail;
+        const scoreDiff = _scoreResult(b) - _scoreResult(a);
+        if (scoreDiff !== 0) return scoreDiff;
+        return a.Key < b.Key ? -1 : a.Key > b.Key ? 1 : 0;
+    })[0];
+}
+
 function parseEmployeeId(loginName) {
     const afterPipe = loginName.includes("|") ? loginName.split("|").pop() : loginName;
     return afterPipe.includes("\\") ? afterPipe.split("\\").pop() : afterPipe;
@@ -3579,7 +3602,7 @@ async function searchUsers(query, options = {}) {
             cause: err
         });
     }
-    return options.raw ? parsed : _normalizeResults(parsed);
+    return options.raw ? parsed : _normalizeResults(parsed, options.allowEmailAddresses);
 }
 
 async function getUserProfile(loginName) {
@@ -3665,6 +3688,55 @@ async function getFullUserDetails(loginName, siteApi = new SiteApi) {
         accountLogins: accountLogins,
         accountEmails: accountEmails
     };
+}
+
+async function resolveCanonicalUser(input, siteApi) {
+    const seedResults = await searchUsers(input, {
+        maximumSuggestions: 30,
+        raw: true
+    });
+    const seedResolved = seedResults.filter(r => r.IsResolved === true);
+    if (seedResolved.length === 0) {
+        throw new SystemError("UserNotResolved", `resolveCanonicalUser: no resolved results found for input "${input}"`, {
+            breaksFlow: false
+        });
+    }
+    const sams = [ ...new Set(seedResolved.map(r => parseEmployeeId(r.Key).toLowerCase())) ];
+    if (sams.length > 1) {
+        console.warn("[resolveCanonicalUser] multiple samAccountNames found in cluster -- deterministic merge by sam may be incomplete", {
+            input: input,
+            sams: sams
+        });
+    }
+    const clusterMap = new Map;
+    for (const sam of sams) {
+        let samResults;
+        try {
+            samResults = await searchUsers(sam, {
+                maximumSuggestions: 50,
+                raw: true
+            });
+        } catch (err) {
+            console.warn("[resolveCanonicalUser] sam search failed, skipping", {
+                sam: sam,
+                err: err
+            });
+            continue;
+        }
+        for (const r of samResults) {
+            if (r.IsResolved === true) {
+                clusterMap.set(r.Key, r);
+            }
+        }
+    }
+    for (const r of seedResolved) {
+        if (!clusterMap.has(r.Key)) {
+            clusterMap.set(r.Key, r);
+        }
+    }
+    const cluster = [ ...clusterMap.values() ];
+    const canonical = _pickCanonical(cluster);
+    return getFullUserDetails(canonical.Key, siteApi);
 }
 
 var _UserIdentity_details, _UserIdentity_properties;
@@ -5981,5 +6053,5 @@ function isHTMDNode(arg) {
     } else return every(arg, isHTMDNode);
 }
 
-export { AccordionGroup, AccordionItem, Button, Card, CheckBox, ComboBox, Container, ContextStore, CurrentUser, DateInput, DateRangeInput, DebouncedInput, Dialog, ErrorBoundary, FORMAT_MAP, FieldLabel, FormControl, FormField, FormSchema, Fragment, HTMDElement, Image, LinkButton, List, Loader, MAX_RECIPIENTS_PER_CALL, Modal, NavigationEvent, NumberInput, PeoplePicker, Router, SP_ACCEPT_MINIMAL, SidePanel, SimpleElapsedTimeBenchmark, SiteApi, StyleResource, SystemError, TabGroup, Text, TextArea, TextInput, Toast, UserIdentity, View, ViewSwitcher, dayjs as __dayjs, Fuse as __fuse, copyToClipboard, defineRoute, enforceStrictObject, escapeAttr, escapeHtml, extractComboBoxValue, fromFieldValue, generateRuntimeUID, generateUUIDv4, getFullUserDetails, getIcon, getUserProfile, isCallable, isComboBoxOption, isHTMDComponent, isHTMDNode, listIcons, pageReset, parseEmployeeId, refreshRequestDigest, registerIcons, resolveEmailsToLogins, resolvePath, runtimeEventName, sanitizeQuery, searchUsers, sendEmail, spDELETE, spGET, spMERGE, spPOST, startDigestTimer, stopDigestTimer, toFieldValue };
+export { AccordionGroup, AccordionItem, Button, Card, CheckBox, ComboBox, Container, ContextStore, CurrentUser, DateInput, DateRangeInput, DebouncedInput, Dialog, ErrorBoundary, FORMAT_MAP, FieldLabel, FormControl, FormField, FormSchema, Fragment, HTMDElement, Image, LinkButton, List, Loader, MAX_RECIPIENTS_PER_CALL, Modal, NavigationEvent, NumberInput, PeoplePicker, Router, SP_ACCEPT_MINIMAL, SidePanel, SimpleElapsedTimeBenchmark, SiteApi, StyleResource, SystemError, TabGroup, Text, TextArea, TextInput, Toast, UserIdentity, View, ViewSwitcher, dayjs as __dayjs, Fuse as __fuse, copyToClipboard, defineRoute, enforceStrictObject, escapeAttr, escapeHtml, extractComboBoxValue, fromFieldValue, generateRuntimeUID, generateUUIDv4, getFullUserDetails, getIcon, getUserProfile, isCallable, isComboBoxOption, isHTMDComponent, isHTMDNode, listIcons, pageReset, parseEmployeeId, refreshRequestDigest, registerIcons, resolveCanonicalUser, resolveEmailsToLogins, resolvePath, runtimeEventName, sanitizeQuery, searchUsers, sendEmail, spDELETE, spGET, spMERGE, spPOST, startDigestTimer, stopDigestTimer, toFieldValue };
 //# sourceMappingURL=nofbiz.base.js.map
