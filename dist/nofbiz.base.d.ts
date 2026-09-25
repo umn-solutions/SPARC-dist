@@ -609,6 +609,8 @@ declare class Modal extends Container {
     closeOnFocusLoss: boolean;
     protected _onCloseHandler: () => void;
     protected _onOpenHandler: () => void;
+    /** Real backdrop DOM node appended to `_containerSelector`; sibling of the overlay so transforms don't trap it. */
+    protected _backdropEl: JQuery<HTMLElement> | null;
     constructor(children: HTMDNode, props?: ModalProps);
     render(): void;
     open(): void;

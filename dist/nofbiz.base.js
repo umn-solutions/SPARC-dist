@@ -1147,6 +1147,7 @@ const DISABLE_SCROLL_CLASS = `${LIB_PREFIX}__disable-scroll`;
 class Modal extends Container {
     constructor(children, props) {
         super(children, props);
+        this._backdropEl = null;
         this.backdrop = props?.backdrop ?? true;
         this._isOpen = false;
         this.closeOnFocusLoss = props?.closeOnFocusLoss ?? true;
@@ -1160,7 +1161,10 @@ class Modal extends Container {
         this._isOpen = true;
         this._onOpenHandler();
         this.instance?.addClass(`${this.topClassBEM}--open`);
-        if (this.backdrop) this.instance?.addClass(`${this.topClassBEM}--backdrop`);
+        if (this.backdrop) {
+            this._backdropEl = $(`<div class="${LIB_PREFIX}__backdrop"></div>`);
+            $(this._containerSelector).append(this._backdropEl);
+        }
         $(this._containerSelector).addClass(DISABLE_SCROLL_CLASS);
         clearTimeout(this.instance?.data(`${LIB_PREFIX}-blurTimeout`));
         this.instance?.trigger("focus");
@@ -1169,14 +1173,16 @@ class Modal extends Container {
         this._isOpen = false;
         this._onCloseHandler();
         this.instance?.removeClass(`${this.topClassBEM}--open`);
-        this.instance?.removeClass(`${this.topClassBEM}--backdrop`);
+        this._backdropEl?.remove();
+        this._backdropEl = null;
         $(this._containerSelector).removeClass(DISABLE_SCROLL_CLASS);
     }
     remove() {
         this._clearBlurTimeout();
         if (this._isOpen) {
             this.instance?.removeClass(`${this.topClassBEM}--open`);
-            this.instance?.removeClass(`${this.topClassBEM}--backdrop`);
+            this._backdropEl?.remove();
+            this._backdropEl = null;
             $(this._containerSelector).removeClass(DISABLE_SCROLL_CLASS);
             this._isOpen = false;
         }
