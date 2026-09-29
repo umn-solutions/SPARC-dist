@@ -341,6 +341,120 @@ async function runProbe(listName, url = _defaultRedirectUrl()) {
 }
 
 // ---------------------------------------------------------------------------
+// 6. Robust redirect via a web-scoped ScriptLink UserCustomAction.
+//
+//    Why this instead of ContentType.NewFormUrl: pointing the content type's
+//    form at app.aspx makes SharePoint treat app.aspx AS the list's form and
+//    form-render it in the live list context -- which 500s server-side once a
+//    real List GUID is on the URL. This approach keeps SharePoint's REAL
+//    NewForm.aspx/EditForm.aspx (they render fine), and injects a guarded
+//    script that redirects to the app on load. REST-addable; requires the site
+//    to permit custom script (ScriptLink). If it 403s, custom script is denied.
+// ---------------------------------------------------------------------------
+
+const REDIRECT_ACTION_NAME = 'SPARC_FormRedirect';
+
+async function _getListId(listName) {
+  const res = await fetch(`${_listEndpoint(listName)}?$select=Id`, {
+    headers: { Accept: 'application/json;odata=nometadata' },
+  });
+  if (!res.ok) throw new Error(`getListId failed (${res.status})`);
+  const id = (JSON.parse(await res.text()).Id || '').replace(/[{}]/g, '').toLowerCase();
+  if (!id) throw new Error('list Id not returned');
+  return id;
+}
+
+// Guarded redirect: only fires on the target list's New/Edit form pages.
+function _redirectScriptBlock(listId, appUrl) {
+  return [
+    '(function(){try{',
+    ' var c=window._spPageContextInfo||{};',
+    ' var lid=(c.pageListId||"").replace(/[{}]/g,"").toLowerCase();',
+    ' if(lid!==' + JSON.stringify(listId) + ')return;',
+    ' var p=(location.pathname||"").toLowerCase();',
+    ' if(p.indexOf("/newform.aspx")>-1||p.indexOf("/editform.aspx")>-1){',
+    '  window.location.replace(' + JSON.stringify(appUrl) + ');',
+    ' }',
+    '}catch(e){console.warn("[SPARC_FormRedirect]",e);}})();',
+  ].join('');
+}
+
+async function listCustomActions(scope = 'web', listName) {
+  const base = scope === 'list' ? _listEndpoint(listName) : `${_webUrl()}/_api/web`;
+  const res = await fetch(`${base}/UserCustomActions?$select=Id,Name,Title,Location,Sequence`, {
+    headers: { Accept: 'application/json;odata=nometadata' },
+  });
+  const items = JSON.parse(await res.text()).value ?? [];
+  console.log(`[listCustomActions:${scope}]`, items);
+  return items;
+}
+
+async function addFormRedirectAction(listName, appUrl = _defaultRedirectUrl()) {
+  const listId = await _getListId(listName);
+  const res = await fetch(`${_webUrl()}/_api/web/UserCustomActions`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json;odata=verbose',
+      'Content-Type': 'application/json;odata=verbose',
+      'X-RequestDigest': _digest(),
+    },
+    body: JSON.stringify({
+      __metadata: { type: 'SP.UserCustomAction' },
+      Title: REDIRECT_ACTION_NAME,
+      Name: REDIRECT_ACTION_NAME + '_' + listId,
+      Location: 'ScriptLink',
+      ScriptBlock: _redirectScriptBlock(listId, appUrl),
+      Sequence: 100,
+    }),
+  });
+  const body = await res.text();
+  if (!res.ok) {
+    let msg = body; try { msg = JSON.parse(body)?.error?.message?.value ?? body; } catch { /* raw */ }
+    console.error(`[addFormRedirectAction] ${res.status}:`, msg);
+    throw new Error(`add ScriptLink failed (${res.status}): ${msg}`);
+  }
+  console.log(`%c[addFormRedirectAction] web ScriptLink added, guarded to list ${listId} -> ${appUrl}`, 'color:green');
+  console.log('Now click New/Edit on "' + listName + '" -- native form renders briefly then redirects. Undo: removeFormRedirectActions("' + listName + '")');
+  return JSON.parse(body);
+}
+
+async function removeFormRedirectActions(listName) {
+  let listId = null;
+  try { listId = await _getListId(listName); } catch { /* list may be gone */ }
+  const actions = await listCustomActions('web');
+  const mine = actions.filter(a =>
+    a.Title === REDIRECT_ACTION_NAME ||
+    a.Name === REDIRECT_ACTION_NAME ||
+    (listId && a.Name === REDIRECT_ACTION_NAME + '_' + listId)
+  );
+  for (const a of mine) {
+    const res = await fetch(`${_webUrl()}/_api/web/UserCustomActions(guid'${a.Id}')`, {
+      method: 'POST',
+      headers: { 'X-RequestDigest': _digest(), 'IF-MATCH': '*', 'X-HTTP-Method': 'DELETE' },
+    });
+    if (!res.ok) console.error('[removeFormRedirectActions] delete failed', a.Id, res.status);
+    else console.log('[removeFormRedirectActions] removed', a.Id);
+  }
+  if (!mine.length) console.log('[removeFormRedirectActions] none found');
+  return mine.length;
+}
+
+// All-in-one for the custom-action path. Remove any CT override first so the
+// two mechanisms don't fight.
+async function runActionProbe(listName, url = _defaultRedirectUrl()) {
+  if (!listName) { console.error('runActionProbe(listName[, url])'); return; }
+  console.log('%c=== ScriptLink redirect probe: ' + listName + ' ===', 'font-weight:bold');
+  try {
+    await addFormRedirectAction(listName, url);
+    console.log('%cScriptLink added. Click the list\'s New/Edit to confirm it redirects (native form flashes, then app).', 'color:green');
+    return { added: true };
+  } catch (e) {
+    console.log('%cScriptLink add failed -- likely custom script denied in this env: ' + e.message, 'color:red');
+    return { added: false, error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Expose
 // ---------------------------------------------------------------------------
 
@@ -355,6 +469,10 @@ Object.assign(window, {
   getCTForms,
   setCTFormsJSOM,
   restoreCTFormsJSOM,
+  runActionProbe,
+  addFormRedirectAction,
+  removeFormRedirectActions,
+  listCustomActions,
 });
 
 console.log(
