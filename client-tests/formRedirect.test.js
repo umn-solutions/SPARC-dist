@@ -209,6 +209,75 @@ async function restoreFormsJSOM(listName) {
 }
 
 // ---------------------------------------------------------------------------
+// 5. Content-type form-URL override (the documented custom-form mechanism).
+//    Unlike list.DefaultNewFormUrl, ContentType.NewFormUrl does NOT require the
+//    target to be an existing SPForm -- it overrides which page the New/Edit
+//    button opens. This is the real "redirect to a custom page" path, if the
+//    property is client-writable in this environment.
+// ---------------------------------------------------------------------------
+
+async function getCTForms(listName) {
+  await loadJSOM();
+  const ctx = SP.ClientContext.get_current();
+  const cts = ctx.get_web().get_lists().getByTitle(listName).get_contentTypes();
+  ctx.load(cts, 'Include(Name,Id,NewFormUrl,EditFormUrl,DisplayFormUrl)');
+  await _execQuery(ctx);
+  const out = [];
+  const e = cts.getEnumerator();
+  while (e.moveNext()) {
+    const c = e.get_current();
+    out.push({
+      name: c.get_name(),
+      newFormUrl: c.get_newFormUrl(),
+      editFormUrl: c.get_editFormUrl(),
+      displayFormUrl: c.get_displayFormUrl(),
+    });
+  }
+  console.log('[getCTForms]', listName, out);
+  return out;
+}
+
+async function setCTFormsJSOM(listName, url = _defaultRedirectUrl()) {
+  await loadJSOM();
+  const ctx = SP.ClientContext.get_current();
+  const cts = ctx.get_web().get_lists().getByTitle(listName).get_contentTypes();
+  ctx.load(cts);
+  await _execQuery(ctx);
+  if (cts.get_count() === 0) throw new Error('List has no content types.');
+
+  const ct = cts.itemAt(0); // primary/default content type
+  if (typeof ct.set_newFormUrl !== 'function') {
+    throw new Error('SP.ContentType has no set_newFormUrl in this JSOM build -- property not client-writable here.');
+  }
+  ct.set_newFormUrl(url);
+  ct.set_editFormUrl(url);
+  ct.update(false); // false = do not push to child content types
+  try {
+    await _execQuery(ctx);
+    console.log(`%c[setCTFormsJSOM] content-type form override SUCCEEDED on ${listName} -> ${url}`, 'color:green');
+  } catch (e) {
+    console.error('[setCTFormsJSOM] content-type override FAILED:', e.message);
+    throw e;
+  }
+  return getCTForms(listName);
+}
+
+async function restoreCTFormsJSOM(listName) {
+  await loadJSOM();
+  const ctx = SP.ClientContext.get_current();
+  const cts = ctx.get_web().get_lists().getByTitle(listName).get_contentTypes();
+  ctx.load(cts);
+  await _execQuery(ctx);
+  const ct = cts.itemAt(0);
+  ct.set_newFormUrl('');
+  ct.set_editFormUrl('');
+  ct.update(false);
+  await _execQuery(ctx);
+  console.log(`[restoreCTFormsJSOM] cleared content-type form overrides on ${listName}`);
+  return getCTForms(listName);
+}
+
+// ---------------------------------------------------------------------------
 // All-in-one probe
 // ---------------------------------------------------------------------------
 
@@ -231,30 +300,42 @@ async function runProbe(listName, url = _defaultRedirectUrl()) {
   verdict.jsom = await jsomAvailable();
 
   if (verdict.jsom.loadable) {
-    console.log('--- 4. JSOM write ---');
+    console.log('--- 4. JSOM write via list.DefaultNewFormUrl (expected: SPForm rejection) ---');
     try {
       verdict.after = await setFormsJSOM(listName, url);
-      verdict.jsomWrite = 'ok';
+      verdict.defaultUrlWrite = 'ok';
     } catch (e) {
-      verdict.jsomWrite = 'failed: ' + e.message;
+      verdict.defaultUrlWrite = 'failed: ' + e.message;
+    }
+
+    console.log('--- 5. JSOM write via ContentType.NewFormUrl (the real redirect path) ---');
+    try {
+      verdict.ctBefore = await getCTForms(listName);
+      verdict.ctAfter = await setCTFormsJSOM(listName, url);
+      verdict.ctWrite = 'ok';
+    } catch (e) {
+      verdict.ctWrite = 'failed: ' + e.message;
     }
   } else {
-    verdict.jsomWrite = 'skipped -- JSOM not available';
+    verdict.defaultUrlWrite = 'skipped -- JSOM not available';
+    verdict.ctWrite = 'skipped -- JSOM not available';
   }
 
   const restBlocked = verdict.rest && !verdict.rest.ok;
-  const jsomWorks = verdict.jsomWrite === 'ok';
+  const defaultWorks = verdict.defaultUrlWrite === 'ok';
+  const ctWorks = verdict.ctWrite === 'ok';
   console.log('%c=== VERDICT ===', 'font-weight:bold');
-  console.log('REST write blocked  :', restBlocked ? `YES (${verdict.rest.status})` : 'no');
-  console.log('JSOM available      :', verdict.jsom.loadable ? 'YES' : 'NO');
-  console.log('JSOM write worked   :', jsomWorks ? 'YES' : 'NO');
-  if (jsomWorks) {
-    console.log('%cForm redirect is achievable via JSOM in this environment.', 'color:green');
-    console.log('Run restoreFormsJSOM("' + listName + '") to undo.');
+  console.log('REST write blocked        :', restBlocked ? `YES (${verdict.rest.status})` : 'no');
+  console.log('JSOM available            :', verdict.jsom.loadable ? 'YES' : 'NO');
+  console.log('list.DefaultNewFormUrl set:', defaultWorks ? 'YES' : 'NO (only accepts the list\'s own forms)');
+  console.log('ContentType.NewFormUrl set:', ctWorks ? 'YES' : 'NO');
+  if (ctWorks) {
+    console.log('%cForm redirect IS achievable via ContentType.NewFormUrl (JSOM). This is the path to wire into setup.', 'color:green');
+    console.log('Undo with restoreCTFormsJSOM("' + listName + '"). Also click the list\'s New/Edit button to confirm it actually redirects.');
   } else if (verdict.jsom.loadable) {
-    console.log('%cJSOM loads but the write failed -- see error above (likely governance/permission).', 'color:orange');
+    console.log('%cJSOM loads but neither form-URL property is client-writable here. Browser-based redirect not viable -- fall back to PowerShell-at-deploy or drop the toggle.', 'color:orange');
   } else {
-    console.log('%cJSOM is not available/allowed here -- form redirect cannot be done from the browser.', 'color:red');
+    console.log('%cJSOM not available/allowed -- form redirect cannot be done from the browser.', 'color:red');
   }
   return verdict;
 }
@@ -271,6 +352,9 @@ Object.assign(window, {
   loadJSOM,
   setFormsJSOM,
   restoreFormsJSOM,
+  getCTForms,
+  setCTFormsJSOM,
+  restoreCTFormsJSOM,
 });
 
 console.log(
