@@ -2525,6 +2525,7 @@ function toFieldValue(value) {
 }
 
 function _parseSPString(raw, logTag, logContext = {}) {
+    if (typeof raw !== "string") return raw;
     if (raw === "true") return true;
     if (raw === "false") return false;
     if (raw.startsWith("{") || raw.startsWith("[")) {

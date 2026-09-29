@@ -2907,17 +2907,22 @@ declare function extractComboBoxValue(value: FormFieldType): SPFieldValue;
  */
 declare function toFieldValue(value: SPFieldValue): string;
 /**
- * Parse a raw SharePoint string value into a typed JavaScript value.
+ * Parse a raw SharePoint field value into a typed JavaScript value.
+ *
+ * Accepts `unknown` input so callers passing already-parsed values (arrays,
+ * objects, booleans, numbers) do not crash at runtime. Non-string values that
+ * are not null / empty-string are returned as-is, making this function
+ * idempotent: `fromFieldValue(fromFieldValue(x)) === fromFieldValue(x)`.
  *
  * Returns `null` for null, undefined, or empty string input.
  * The developer provides the expected type via the generic parameter.
  *
- * Gating rules (shared with `parseFieldValues`):
+ * Gating rules (applied only when `raw` is a non-empty string):
  * - `"true"` / `"false"` -> `boolean`
  * - Strings starting with `{` or `[` -> `JSON.parse()` (warn + return raw string on failure)
  * - All other strings (including numeric strings like `"42"`) -> returned as-is (unchanged)
  */
-declare function fromFieldValue<T>(raw: string): T | null;
+declare function fromFieldValue<T>(raw: unknown): T | null;
 
 interface CAMLQueryResponse<T> {
     value: T[];
