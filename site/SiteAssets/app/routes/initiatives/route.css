@@ -1,0 +1,30 @@
+/* route-specific overrides for the initiatives catalog only */
+
+.summary-card--clickable {
+  cursor: pointer;
+}
+
+.initiative-title {
+  margin: 0;
+  font-size: var(--font-size-500);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+}
+
+.initiative-association {
+  margin: 0;
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-300);
+}
+
+.initiative-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-sNudge);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+}
+
+/* .initiative-tags / .initiative-tag live in shared css/styles.css --
+   used by both the catalog and the detail route. */
+

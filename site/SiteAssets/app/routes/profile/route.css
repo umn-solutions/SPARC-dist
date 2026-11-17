@@ -1,0 +1,390 @@
+/* route-specific overrides for the My Profile page only */
+
+/* Two-column layout: sidebar (personal data) + main (KPIs + profile + initiatives) */
+.profile-layout {
+  display: grid;
+  grid-template-columns: minmax(520px, 0.9fr) minmax(0, 1.3fr);
+  gap: var(--space-xl);
+  align-items: start;
+  padding-block: var(--space-xxl);
+  padding-inline: var(--space-m);
+  max-width: 1600px;
+}
+
+@media (max-width: 1024px) {
+  .profile-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Sidebar ---- */
+
+.profile-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-l);
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-m);
+  padding: var(--space-xl);
+  text-align: center;
+}
+
+/* Avatar */
+.profile-avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--color-brand-primary);
+}
+
+.profile-avatar-placeholder {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--color-brand-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-avatar-initials {
+  color: var(--color-text-on-brand, #FBF9F4);
+  font-size: 2rem;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  user-select: none;
+}
+
+.profile-name {
+  margin: 0;
+  font-size: var(--font-size-600);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-fg-primary);
+}
+
+.profile-job-title {
+  margin: 0;
+  font-size: var(--font-size-300);
+  color: var(--color-fg-secondary);
+}
+
+/* Individual detail rows inside the sidebar */
+.profile-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  width: 100%;
+  margin-top: var(--space-sNudge);
+  text-align: left;
+}
+
+.profile-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+}
+
+.profile-detail-item:last-child {
+  border-bottom: none;
+}
+
+.profile-detail-label {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-fg-tertiary);
+  font-weight: 600;
+}
+
+.profile-detail-value {
+  font-size: var(--font-size-300);
+  color: var(--color-fg-primary);
+  word-break: break-all;
+}
+
+/* Groups list under the card */
+.profile-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-l);
+}
+
+.profile-groups-title,
+.profile-notices-title {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-fg-tertiary);
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+}
+
+.profile-group-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-stroke-subtle);
+  font-size: var(--font-size-200);
+  color: var(--color-fg-secondary);
+}
+
+/* Notices card: legal and data-protection links */
+.profile-notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
+  padding: var(--space-l);
+}
+
+/* Doc links inside the notices card */
+.profile-doc-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  width: 100%;
+}
+
+.profile-doc-links .nofbiz__linkbutton {
+  width: 100%;
+  justify-content: center;
+  font-size: var(--font-size-200);
+}
+
+/* ---- Main area ---- */
+
+.profile-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.profile-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-l);
+}
+
+.profile-initiatives-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-s);
+  padding-bottom: var(--space-s);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+}
+
+.profile-initiatives-title {
+  margin: 0;
+  font-size: var(--font-size-500);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+}
+
+.profile-initiatives-count {
+  font-size: var(--font-size-300);
+  color: var(--color-fg-tertiary);
+}
+
+/* ---- Profile section (view + edit) ---- */
+
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-l);
+}
+
+.profile-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+}
+
+.profile-section-title {
+  margin: 0;
+  font-size: var(--font-size-500);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+}
+
+/* Derived / view-mode field groups */
+.profile-view-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: var(--space-l);
+  border-radius: var(--radius-xl);
+}
+
+.profile-view-group .profile-detail-item {
+  padding-block: var(--space-xs);
+}
+
+.profile-view-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-m);
+  padding: var(--space-l);
+}
+
+/* Section cards side by side in two columns (2xN); collapses to one column
+   on narrow screens. */
+.profile-view-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-l);
+  align-items: start;
+}
+
+@media (max-width: 600px) {
+  .profile-view-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.profile-view-card .profile-detail-item {
+  padding-block: var(--space-xs);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+}
+
+.profile-view-card .profile-detail-item:last-child {
+  border-bottom: none;
+}
+
+.profile-view-text {
+  margin: 0;
+  font-size: var(--font-size-300);
+  color: var(--color-fg-primary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* ---- Edit form ---- */
+
+.profile-form-section-title {
+  margin: 0 0 var(--space-m);
+  font-size: var(--font-size-400);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+  padding-bottom: var(--space-s);
+}
+
+.profile-form-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-m);
+  padding: var(--space-l);
+}
+
+.profile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-l);
+}
+
+@media (max-width: 620px) {
+  .profile-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* B1: override form-control width:25ch on checkbox so it stays a small square */
+.profile-form-grid .nofbiz__checkbox.form-control {
+  width: 1.25em;
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+.profile-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-s);
+  padding-top: var(--space-m);
+}
+
+/* ---- Tag input ---- */
+
+.tag-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* B3: override form-control width:25ch so the tag text input fills its grid cell */
+.tag-input-wrapper .nofbiz__textinput {
+  width: 100%;
+}
+
+.tag-input-chips {
+  min-height: 28px;
+  flex-wrap: wrap;
+}
+
+/* Edit-mode chip: reuses initiative-tags row from shared CSS; each chip
+   is its own pill with a remove button inline. */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 10px;
+  border-radius: 999px;
+  background: var(--color-brand-selected);
+  color: var(--color-brand-active);
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.tag-chip-label {
+  line-height: 1.4;
+}
+
+/* ---- My initiatives: badge + card wrapper ---- */
+
+/* Stacks the registration-status badge above the initiative card.
+   The wrapper is the grid item so the card still fills the cell. */
+.profile-initiative-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* Badge wrapper: keeps the pill left-aligned (status-badge is inline-flex
+   with width:fit-content so it will not stretch). */
+.profile-initiative-status {
+  display: flex;
+}
+
+/* ---- Tag chip ---- */
+
+/* Override SPARC Button defaults to make the remove "x" look inline. */
+.nofbiz__button.tag-chip-remove {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 4px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  font-size: inherit !important;
+  color: currentColor !important;
+  line-height: 1 !important;
+  cursor: pointer;
+}
+
+.nofbiz__button.tag-chip-remove:hover {
+  opacity: 0.7;
+}

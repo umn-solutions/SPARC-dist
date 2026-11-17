@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Site Setup</title>
+
+    <script src="../jquery.js"></script>
+    <script src="../sharepointContext.js"></script>
+    <script src="../spInterceptor.js"></script>
+
+    <style>
+      :root {
+        --bg: #f4f5f7;
+        --card-bg: #fff;
+        --border: #e0e0e0;
+        --text: #1a1a1a;
+        --text-muted: #666;
+        --green: #00915a;
+        --green-hover: #007a4d;
+        --green-bg: #e6f5ef;
+        --amber: #b45309;
+        --amber-bg: #fef3c7;
+        --blue: #1d4ed8;
+        --blue-bg: #dbeafe;
+        --orange: #c2410c;
+        --orange-bg: #ffedd5;
+        --red: #dc2626;
+        --red-hover: #b91c1c;
+        --red-bg: #fef2f2;
+        --gray: #6b7280;
+        --gray-hover: #4b5563;
+        --radius: 6px;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+      }
+
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem;
+      }
+
+      /* Header */
+      .header { margin-bottom: 1.5rem; }
+      .header h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; }
+      .header p { color: var(--text-muted); font-size: 0.9rem; }
+
+      /* Action bar */
+      .action-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      .action-bar .separator { width: 1px; height: 2rem; background: var(--border); margin: 0 0.25rem; }
+      .scan-time { font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
+
+      /* Site-wide controls */
+      .site-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        padding: 0.6rem 1rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      .site-controls:empty { display: none; }
+      .site-controls-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-right: 0.25rem; }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.45rem 0.9rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+        border: none;
+        border-radius: var(--radius);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s;
+      }
+      .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .btn-primary { background: var(--green); color: #fff; }
+      .btn-primary:not(:disabled):hover { background: var(--green-hover); }
+      .btn-danger { background: var(--red); color: #fff; }
+      .btn-danger:not(:disabled):hover { background: var(--red-hover); }
+      .btn-secondary { background: #e5e7eb; color: var(--text); }
+      .btn-secondary:not(:disabled):hover { background: #d1d5db; }
+      .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.78rem; }
+      .gen-select {
+        padding: 0.45rem 0.5rem;
+        font-size: 0.85rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #fff;
+        cursor: pointer;
+      }
+      .gen-select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      /* Cards */
+      .list-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 1rem;
+        overflow: hidden;
+      }
+      .card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        user-select: none;
+        border-bottom: 1px solid transparent;
+      }
+      .card-header:hover { background: #fafafa; }
+      .list-card.open .card-header { border-bottom-color: var(--border); }
+      .card-header .toggle { font-size: 0.7rem; color: var(--text-muted); transition: transform 0.15s; }
+      .list-card.open .card-header .toggle { transform: rotate(90deg); }
+      .card-header .list-name { font-weight: 600; font-size: 0.95rem; }
+      .card-header .summary { font-size: 0.8rem; color: var(--text-muted); }
+      .card-header .card-actions { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem; min-width: 0; }
+
+      .card-body { display: none; padding: 0; }
+      .list-card.open .card-body { display: block; }
+
+      /* Status badge */
+      .badge {
+        display: inline-block;
+        padding: 0.1rem 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        border-radius: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+      .badge-ok { background: var(--green-bg); color: var(--green); }
+      .badge-missing { background: var(--amber-bg); color: var(--amber); }
+      .badge-extra { background: var(--blue-bg); color: var(--blue); }
+      .badge-index { background: var(--orange-bg); color: var(--orange); }
+      .badge-list-missing { background: var(--red-bg); color: var(--red); }
+      .badge-hidden { background: #f3f4f6; color: #374151; }
+
+      /* Field table */
+      .field-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+      .field-table th {
+        text-align: left;
+        padding: 0.5rem 1rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+        background: #f9fafb;
+        border-bottom: 1px solid var(--border);
+      }
+      .field-table td {
+        padding: 0.45rem 1rem;
+        border-bottom: 1px solid #f0f0f0;
+        vertical-align: middle;
+      }
+      .field-table tr:last-child td { border-bottom: none; }
+      .field-table .field-name { font-weight: 500; }
+      .field-table .field-type { color: var(--text-muted); }
+      .field-table .field-actions { text-align: right; }
+
+      /* Log panel */
+      .log-panel { margin-top: 1rem; }
+      .log-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0;
+        cursor: pointer;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        user-select: none;
+        border: none;
+        background: none;
+      }
+      .log-toggle .toggle { font-size: 0.7rem; transition: transform 0.15s; }
+      .log-panel.open .log-toggle .toggle { transform: rotate(90deg); }
+      .log-content {
+        display: none;
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 1rem;
+        border-radius: var(--radius);
+        font-family: 'Cascadia Code', 'Fira Code', monospace;
+        font-size: 0.8rem;
+        line-height: 1.6;
+        max-height: 400px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .log-panel.open .log-content { display: block; }
+      .log-content .log-error { color: #f87171; }
+      .log-content .log-success { color: #4ade80; }
+      .log-content .log-info { color: #60a5fa; }
+
+      /* Empty state */
+      .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <input id="__REQUESTDIGEST" type="hidden" value="0x1234MOCK_DIGEST_VALUE_FOR_SANDBOX" />
+    <div class="container">
+      <div class="header">
+        <h1>Site Setup</h1>
+        <p>Scan, create, and sync lists and fields defined in the schema below.</p>
+      </div>
+
+      <div class="action-bar">
+        <button type="button" id="btn-scan" class="btn btn-primary">Scan Site</button>
+        <div class="separator"></div>
+        <button type="button" id="btn-full-setup" class="btn btn-secondary" disabled>Full Setup</button>
+        <button type="button" id="btn-sync-all" class="btn btn-secondary" disabled>Sync All</button>
+        <div class="separator"></div>
+        <select id="gen-count" class="gen-select" disabled>
+          <option value="100">100 tasks</option>
+          <option value="1000">1K tasks</option>
+          <option value="10000">10K tasks</option>
+          <option value="25000">25K tasks</option>
+          <option value="50000">50K tasks</option>
+        </select>
+        <button type="button" id="btn-gen-data" class="btn btn-secondary" disabled>Generate Data</button>
+        <div class="separator"></div>
+        <button type="button" id="btn-backup-site" class="btn btn-secondary" disabled>Backup Site</button>
+        <button type="button" id="btn-restore-site" class="btn btn-secondary">Restore Site</button>
+        <input type="file" id="file-restore" accept=".txt,.sparcbak" style="display:none" />
+        <div class="separator"></div>
+        <button type="button" id="btn-toggle-siteassets" class="btn btn-secondary" disabled>Hide SiteAssets</button>
+        <span id="scan-time" class="scan-time"></span>
+      </div>
+
+      <div id="site-controls" class="site-controls"></div>
+
+      <div id="list-cards">
+        <div class="empty-state">Click "Scan Site" to inspect current list and field state.</div>
+      </div>
+
+      <div id="log-panel" class="log-panel">
+        <button type="button" class="log-toggle" id="log-toggle">
+          <span class="toggle">&#9654;</span> Activity Log
+        </button>
+        <pre class="log-content" id="log"></pre>
+      </div>
+    </div>
+
+    <script src="../SiteAssets/setup/index.js" type="module"></script>
+  </body>
+</html>

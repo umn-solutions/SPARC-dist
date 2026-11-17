@@ -1,0 +1,400 @@
+.admin-import-root {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 60vh;
+  padding: var(--space-l, 16px);
+}
+
+.admin-import-card {
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-l, 16px);
+}
+
+.admin-import-card--wide {
+  width: min(1500px, 100%);
+}
+
+.admin-import-card--invalid {
+  border: 1px solid var(--color-fg-danger, #c62828);
+}
+
+.admin-import-actions {
+  display: flex;
+  gap: var(--space-sNudge, 8px);
+  justify-content: flex-end;
+}
+
+.admin-import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl, 20px);
+  max-height: 70vh;
+  overflow: auto;
+  padding-right: var(--space-xs, 4px);
+}
+
+.admin-import-sheet-title {
+  margin: 0 0 var(--space-s, 12px);
+  font-weight: 600;
+  font-size: var(--font-size-500, 18px);
+  border-bottom: 1px solid var(--color-stroke-subtle, #e0e0e0);
+  padding-bottom: var(--space-xs, 4px);
+}
+
+.admin-import-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-l, 16px);
+}
+
+.admin-import-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sNudge, 8px);
+  padding: var(--space-l, 16px);
+  background: var(--color-bg-subtle, #f7f7f8);
+  border-radius: 6px;
+  border: 1px solid var(--color-stroke-subtle, #e6e6e6);
+}
+
+.admin-import-section-title {
+  margin: 0 0 var(--space-xs, 4px);
+  font-weight: 600;
+  font-size: var(--font-size-400, 15px);
+  color: var(--color-fg-secondary, #4a5568);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-import-section-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-m, 14px) var(--space-l, 20px);
+}
+
+@media (max-width: 1100px) {
+  .admin-import-section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.admin-import-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-import-field--wide {
+  grid-column: 1 / -1;
+}
+
+.admin-import-field-error {
+  color: var(--color-fg-danger, #c62828);
+  font-size: 0.85em;
+  margin-top: 2px;
+}
+
+.admin-import-sheet-input {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .admin-import-section-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-import-field--wide {
+    grid-column: auto;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Workspace: rail | content grid
+   ----------------------------------------------------------------------- */
+
+.admin-workspace {
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: var(--space-l);
+  padding-block: var(--space-xl);
+  align-items: start;
+}
+
+/* -----------------------------------------------------------------------
+   Left rail
+   ----------------------------------------------------------------------- */
+
+.admin-rail {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border: 1px solid var(--color-stroke-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-2);
+  padding: var(--space-m);
+}
+
+.admin-rail__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* Rail nav item -- overrides SPARC secondary button defaults to look like
+   a vertical nav link. The route.css loads after nofbiz.base.css so these
+   declarations naturally win at the same specificity level. */
+.admin-rail__item {
+  width: 100%;
+  text-align: left;
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: var(--color-fg-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-s) var(--space-m);
+  transition: background-color var(--duration-fast) var(--curve-easy-ease),
+              color var(--duration-fast) var(--curve-easy-ease);
+}
+
+.admin-rail__item:hover {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-fg-primary);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Active state: brand text + tinted background + inset left accent (no layout shift) */
+.admin-rail__item--active,
+.admin-rail__item--active:hover {
+  color: var(--color-brand-primary);
+  background-color: var(--color-brand-selected);
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--color-brand-primary);
+}
+
+.admin-rail__divider {
+  border: none;
+  border-top: 1px solid var(--color-stroke-subtle);
+  margin-block: var(--space-m);
+}
+
+.admin-rail__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* Apply the same nav-item look to action buttons in the rail */
+.admin-rail__actions .admin-rail__item {
+  color: var(--color-fg-secondary);
+}
+
+/* -----------------------------------------------------------------------
+   Content area
+   ----------------------------------------------------------------------- */
+
+.admin-workspace__content {
+  min-width: 0; /* prevent grid column blowout on long content */
+}
+
+/* -----------------------------------------------------------------------
+   Responsive: stack rail above content on narrow viewports
+   ----------------------------------------------------------------------- */
+
+/* -----------------------------------------------------------------------
+   Manage tab: clickable initiative title
+   ----------------------------------------------------------------------- */
+
+/* Reset SPARC secondary button to look like an inline link inside the table. */
+.nofbiz__button.manage-title-btn {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  font-size: inherit !important;
+  font-weight: 500 !important;
+  color: var(--color-brand-primary) !important;
+  text-align: left !important;
+  line-height: inherit !important;
+  cursor: pointer;
+  display: inline;
+}
+
+.nofbiz__button.manage-title-btn:hover {
+  text-decoration: underline;
+  background: none !important;
+  box-shadow: none !important;
+}
+
+/* -----------------------------------------------------------------------
+   Registrations Dialog: panel body
+   ----------------------------------------------------------------------- */
+
+.reg-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m, 14px);
+  min-width: min(640px, 80vw);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* -----------------------------------------------------------------------
+   Registrations Dialog: settings row
+   ----------------------------------------------------------------------- */
+
+.reg-settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-m, 14px);
+  padding: var(--space-m, 14px);
+  background: var(--color-bg-subtle, #f7f7f8);
+  border: 1px solid var(--color-stroke-subtle, #e0e0e0);
+  border-radius: var(--radius-md, 6px);
+}
+
+/* ComboBox and TextInput inside the settings row -- reasonable fixed widths */
+.reg-settings-row .nofbiz__combobox {
+  min-width: 180px;
+  flex: 1 1 180px;
+}
+
+.reg-settings-row .nofbiz__textinput {
+  min-width: 100px;
+  flex: 0 1 120px;
+}
+
+/* -----------------------------------------------------------------------
+   Registrations Dialog: summary line
+   ----------------------------------------------------------------------- */
+
+.reg-summary-line {
+  margin: 0;
+  font-size: var(--font-size-300, 13px);
+  color: var(--color-fg-secondary, #4a5568);
+  padding-inline: var(--space-xs, 4px);
+}
+
+/* -----------------------------------------------------------------------
+   Registrations Dialog: search box
+   ----------------------------------------------------------------------- */
+
+/* Override the 25ch width leak from .form-control on the TextInput inside
+   the search wrapper (same pattern as .tag-input-wrapper .nofbiz__textinput). */
+.reg-search .nofbiz__textinput {
+  width: 100%;
+}
+
+/* -----------------------------------------------------------------------
+   Registrations Dialog: volunteer list wrapper (stable container)
+   ----------------------------------------------------------------------- */
+
+.reg-list-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+/* -----------------------------------------------------------------------
+   Registrations Dialog: volunteer list
+   ----------------------------------------------------------------------- */
+
+.reg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Row is now a horizontal flex: info takes remaining space, badge and
+   actions sit on the right. */
+.reg-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-m, 14px);
+  padding-block: var(--space-s, 12px);
+  border-bottom: 1px solid var(--color-stroke-subtle, #e0e0e0);
+}
+
+.reg-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Volunteer details column (name, email, transport, notes) */
+.reg-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.reg-name {
+  font-weight: 600;
+  font-size: 0.95em;
+  color: var(--color-fg-primary);
+}
+
+.reg-email {
+  font-size: 0.85em;
+  color: var(--color-fg-secondary);
+}
+
+.reg-meta {
+  font-size: 0.85em;
+  color: var(--color-fg-secondary);
+}
+
+/* Action buttons column -- compact, vertically stacked, right-aligned */
+.reg-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs, 4px);
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .admin-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-s) var(--space-m);
+  }
+
+  .admin-rail__sections {
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  .admin-rail__divider {
+    display: none;
+  }
+
+  /* Swap the inset left accent for a bottom accent on horizontal layout */
+  .admin-rail__item--active,
+  .admin-rail__item--active:hover {
+    box-shadow: inset 0 -3px 0 var(--color-brand-primary);
+  }
+
+  /* On narrow screens the reg-row stacks: info full width, then badge+actions */
+  .reg-row {
+    flex-wrap: wrap;
+  }
+
+  .reg-row-info {
+    flex-basis: 100%;
+  }
+}

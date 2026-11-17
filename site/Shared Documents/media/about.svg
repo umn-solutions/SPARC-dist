@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" role="img" aria-label="About section placeholder image">
+  <rect width="1200" height="400" fill="#e6f4ee"/>
+  <rect x="0" y="0" width="1200" height="400" fill="url(#g)"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00965d" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#00965d" stop-opacity="0.18"/>
+    </linearGradient>
+  </defs>
+  <circle cx="200" cy="200" r="80" fill="#00965d" fill-opacity="0.12"/>
+  <circle cx="600" cy="160" r="120" fill="#00965d" fill-opacity="0.08"/>
+  <circle cx="1000" cy="220" r="90" fill="#00965d" fill-opacity="0.10"/>
+  <text x="600" y="220" font-family="Segoe UI, sans-serif" font-size="28" fill="#00965d" fill-opacity="0.5" text-anchor="middle">About section image placeholder</text>
+</svg>

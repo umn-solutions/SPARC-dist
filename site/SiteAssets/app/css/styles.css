@@ -1,0 +1,805 @@
+/* Global application styles -- token-based, brand-neutral */
+
+/* -----------------------------------------------------------------------
+   App-level display tokens (font sizes + layout widths)
+   ----------------------------------------------------------------------- */
+
+:root {
+  --size-display: clamp(2.25rem, 4vw + 1rem, 3.25rem);
+  --size-figure: clamp(2rem, 3vw + 1rem, 2.75rem);
+  --size-section-title: clamp(1.5rem, 2vw + 0.5rem, 2rem);
+  --size-eyebrow: 0.75rem;
+  --content-maxw: 1120px;
+  --icon-file: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M5 3h9l5 5v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm8 1.5V9h4.5z'/%3E%3C/svg%3E");
+  --surface-page: #F3EEE2;
+  /* --surface-card shares the sand hue family (#F3EEE2) but sits at higher
+     lightness, giving a gentle figure/ground lift without the harshness of
+     pure white. */
+  --surface-card: #FBF9F4;
+}
+
+/* -----------------------------------------------------------------------
+   Surface utility -- single source of truth for card / panel look.
+   Add the `surface` class alongside any card class in markup; delete the
+   duplicated background / border / border-radius / box-shadow from that
+   rule and keep only its deltas (padding, layout, hover overrides, etc.).
+   ----------------------------------------------------------------------- */
+
+.surface {
+  background: var(--surface-card);
+  border: 1px solid var(--color-stroke-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-2);
+}
+
+/* -----------------------------------------------------------------------
+   Root shell -- full-bleed so colored bands span the viewport
+   ----------------------------------------------------------------------- */
+
+#root {
+  max-width: none;
+  margin: 0;
+  padding: 0 0 var(--space-xxxl);
+  background: var(--surface-page);
+}
+
+/* Inner content wrapper used by every band */
+.shell {
+  width: 100%;
+  max-width: var(--content-maxw);
+  margin: 0 auto;
+  padding-inline: var(--space-xl);
+}
+
+/* -----------------------------------------------------------------------
+   Navigation -- sticky white bar
+   ----------------------------------------------------------------------- */
+
+.app-nav {
+  position: sticky;
+  top: var(--space-m);
+  z-index: 100;
+  background: transparent;
+  padding-block: var(--space-m);
+  width: 100%;
+}
+
+/* Floating rounded pill bar -- left-aligned: [logo][link][link]... */
+.app-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-m);
+  padding-block: var(--space-m);
+  padding-inline: var(--space-xl);
+  background: var(--surface-card);
+  border: 1px solid var(--color-stroke-subtle);
+  border-radius: var(--radius-circular);
+  box-shadow: var(--shadow-8);
+}
+
+.app-nav__links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-m);
+}
+
+/* Neutralise LinkButton primary-variant background for nav items across all
+   states. Only background-color is reset -- border/box-shadow/outline are left
+   intact so the active underline and the focus ring survive. */
+.app-nav .app-nav__link,
+.app-nav .app-nav__link:hover,
+.app-nav .app-nav__link:active,
+.app-nav .app-nav__link:focus {
+  background-color: transparent;
+  text-decoration: none;
+  cursor: pointer;
+  width: auto;
+}
+
+.app-nav__brand-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sNudge);
+}
+
+.app-nav__logo {
+  height: 1.75rem; /* ~28px */
+  flex-shrink: 0;
+}
+
+/* The nofbiz__image wrapper applies max-width:100% via SPARC base CSS; override
+   so the SVG (which has only a viewBox) expands to its natural width at this height. */
+.app-nav__logo img {
+  height: 100%;
+  width: auto;
+  max-width: none;
+}
+
+.app-nav__link {
+  color: var(--color-fg-secondary);
+  font-weight: var(--font-weight-medium);
+  padding: var(--space-xs) 0;
+  border-bottom: 2px solid transparent;
+  transition: color var(--duration-fast) var(--curve-easy-ease),
+              border-color var(--duration-fast) var(--curve-easy-ease);
+}
+
+.app-nav__link:hover {
+  color: var(--color-fg-primary);
+}
+
+.app-nav__link--active {
+  color: var(--color-brand-primary);
+  border-bottom-color: var(--color-brand-primary);
+}
+
+/* -----------------------------------------------------------------------
+   Shared typography: eyebrow + section title + lead
+   ----------------------------------------------------------------------- */
+
+.eyebrow {
+  display: block;
+  font-size: var(--size-eyebrow);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-brand-primary);
+  margin-bottom: var(--space-sNudge);
+}
+
+.section-title {
+  margin: 0;
+  font-size: var(--size-section-title);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+  color: var(--color-fg-primary);
+}
+
+.section-lead {
+  margin: var(--space-sNudge) 0 0;
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-400);
+  line-height: 1.6;
+  max-width: 60ch;
+}
+
+/* -----------------------------------------------------------------------
+   Hero band (home)
+   ----------------------------------------------------------------------- */
+
+.hero {
+  background: transparent;
+  border-bottom: 1px solid var(--color-stroke-subtle);
+  padding-block: clamp(var(--space-xxxl), 8vw, 96px);
+}
+
+.hero__inner {
+  max-width: 760px;
+}
+
+.hero__title {
+  margin: 0;
+  font-size: var(--size-display);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.1;
+  color: var(--color-fg-primary);
+}
+
+.hero__sub {
+  margin: var(--space-l) 0 var(--space-xl);
+  font-size: var(--font-size-500);
+  color: var(--color-fg-secondary);
+  line-height: 1.6;
+}
+
+.hero__image {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-4);
+  margin-top: var(--space-xl);
+}
+
+/* -----------------------------------------------------------------------
+   Carousel band (home -- rotating feature tiles, pure-CSS crossfade)
+   ----------------------------------------------------------------------- */
+
+.carousel {
+  --carousel-step: 6s;
+  padding-block: clamp(var(--space-xxl), 4vw, 56px);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+  width: 100%;
+}
+
+.carousel-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-rows: repeat(2, clamp(140px, 16vw, 210px));
+  gap: var(--space-m);
+}
+
+/* Grid placement by slot class, not :first-child */
+.carousel-slot--big {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.carousel-slot {
+  position: relative;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--color-bg-subtle);
+}
+
+/* Each layer stacks inside its slot; two animations drive fade and stacking */
+.carousel-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  animation:
+    carousel-fade  calc(var(--carousel-step) * 5) linear   infinite,
+    carousel-stack calc(var(--carousel-step) * 5) step-end infinite;
+  animation-delay: var(--carousel-delay), var(--carousel-delay);
+}
+
+/* nth-child delay: layer i (1-based) = -((5-i)%5) * step.
+   Negative delays start mid-cycle so state is correct on first paint. */
+.carousel-layer:nth-child(1) { --carousel-delay: 0s; }
+.carousel-layer:nth-child(2) { --carousel-delay: calc(var(--carousel-step) * -4); }
+.carousel-layer:nth-child(3) { --carousel-delay: calc(var(--carousel-step) * -3); }
+.carousel-layer:nth-child(4) { --carousel-delay: calc(var(--carousel-step) * -2); }
+.carousel-layer:nth-child(5) { --carousel-delay: calc(var(--carousel-step) * -1); }
+
+/* Stacking: incoming z3 sits over active z2 sits over outgoing/hidden z1.
+   Outgoing stays opacity 1 (z2) until the incoming (z3) is fully covering it,
+   then drops instantly to 0 at 21%. No slot background shows during the crossfade. */
+@keyframes carousel-fade {
+  0%, 20% { opacity: 1; }
+  21%     { opacity: 0; }
+  94%     { opacity: 0; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  100%    { opacity: 1; }
+}
+
+@keyframes carousel-stack {
+  0%   { z-index: 2; }
+  20%  { z-index: 1; }
+  94%  { z-index: 3; }
+  100% { z-index: 3; }
+}
+
+/* Pause all layers together on hover so the grid freezes in sync */
+.carousel-grid:hover .carousel-layer,
+.carousel-grid:hover .carousel-layer img {
+  animation-play-state: paused;
+}
+
+/* .carousel-layer__img is the nofbiz__image wrapper div; size it to fill the layer.
+   object-fit goes on the inner <img> (Image renders as <div><img/></div>). */
+.carousel-layer__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.carousel-layer__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Suppress the nofbiz__image opacity:0 base style; layers own their opacity. */
+.carousel-slot .nofbiz__image {
+  opacity: 1;
+  transition: none;
+}
+
+.carousel-layer__overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: var(--space-m) var(--space-l);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, transparent 100%);
+}
+
+.carousel-layer__title {
+  display: block;
+  color: #fff;
+  font-size: var(--font-size-400);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.carousel-slot--big .carousel-layer__title {
+  font-size: var(--font-size-600);
+}
+
+.carousel-layer__desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: var(--font-size-300);
+  line-height: 1.4;
+  margin: var(--space-xxs) 0 0;
+}
+
+.carousel-slot--big .carousel-layer__desc {
+  -webkit-line-clamp: 3;
+}
+
+/* Ken Burns: continuous zoom from start of fade-in (94%) through end of fade-out (21%),
+   27% of cycle. scale at 0% = 1 + 0.06*(6/27) ~= 1.0133 for a seamless loop.
+   Resets while hidden. --carousel-delay inherited from .carousel-layer (DRY). */
+@keyframes carousel-kenburns {
+  0%       { transform: scale(1.0133); }
+  21%      { transform: scale(1.06); }
+  22%, 94% { transform: scale(1); }
+  100%     { transform: scale(1.0133); }
+}
+
+.carousel-slot--big .carousel-layer img {
+  animation: carousel-kenburns calc(var(--carousel-step) * 5) linear infinite;
+  animation-delay: var(--carousel-delay);
+}
+
+/* Reduced motion: show first layer of each slot only, no animation */
+@media (prefers-reduced-motion: reduce) {
+  .carousel-layer { animation: none; opacity: 0; }
+  .carousel-layer:first-child { opacity: 1; }
+  .carousel-slot--big .carousel-layer img { animation: none; }
+}
+
+/* Responsive: big slot full-width, small slots 2-up below 880px */
+@media (max-width: 880px) {
+  .carousel-grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: clamp(160px, 30vw, 240px) repeat(2, clamp(140px, 24vw, 200px));
+  }
+
+  .carousel-slot--big {
+    grid-column: 1 / 3;
+    grid-row: 1;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Intro band (home -- about + resources)
+   ----------------------------------------------------------------------- */
+
+.intro {
+  padding-block: clamp(var(--space-xxl), 6vw, 72px);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+}
+
+.intro__grid {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: var(--space-xxl);
+  align-items: start;
+}
+
+/* Card panel for the left column of the intro grid. Surface look comes from
+   the .surface utility class added in markup. Wider column + extra lateral
+   padding by request -- this specific card only. */
+.intro__main {
+  padding: var(--space-xl) var(--space-xxl);
+}
+
+.intro__body {
+  margin: var(--space-l) 0 0;
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-400);
+  line-height: 1.7;
+  max-width: 60ch;
+}
+
+.intro__body + .intro__body { margin-top: var(--space-m); }
+
+/* About-section image, centered below the body text. The nofbiz__image wrapper
+   starts at opacity:0 and transitions to opacity:1 only on a successful load --
+   failed loads stay invisible. With no explicit height on the wrapper, a broken
+   img (0x0 for empty alt) collapses to zero height, leaving no broken box. */
+.intro__about-image {
+  margin-top: var(--space-l);
+}
+
+.intro__about-image img {
+  display: block;
+  margin-inline: auto;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  max-height: 280px;
+  border-radius: var(--radius-xl);
+}
+
+.intro__aside-title {
+  margin: 0 0 var(--space-m);
+  font-size: var(--font-size-500);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+}
+
+.intro__aside-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
+}
+
+/* Surface look delegated to the .surface utility class in markup. */
+.resource-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sNudge);
+  padding: var(--space-l);
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast) var(--curve-easy-ease),
+              transform var(--duration-fast) var(--curve-easy-ease),
+              border-color var(--duration-fast) var(--curve-easy-ease);
+}
+
+.resource-card:hover {
+  box-shadow: var(--shadow-8);
+  transform: translateY(-2px);
+  border-color: var(--color-brand-stroke);
+}
+
+.resource-card__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  background-color: var(--color-brand-primary);
+  -webkit-mask: var(--icon-file) center / contain no-repeat;
+  mask: var(--icon-file) center / contain no-repeat;
+}
+
+.resource-card__text { display: flex; flex-direction: column; gap: 2px; }
+
+.resource-card__title { font-weight: var(--font-weight-semibold); color: var(--color-fg-primary); }
+
+.resource-card__note {
+  font-size: var(--font-size-200);
+  color: var(--color-fg-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+@media (max-width: 880px) {
+  .intro__grid { grid-template-columns: 1fr; }
+}
+
+/* -----------------------------------------------------------------------
+   Figures band (home signature element)
+   ----------------------------------------------------------------------- */
+
+.figures {
+  padding-block: clamp(var(--space-xxl), 6vw, 72px);
+}
+
+.figures__head {
+  margin-bottom: var(--space-xl);
+}
+
+/* Card panel wrapping the stats grid. Surface look comes from the .surface
+   utility class added in markup. */
+.figures__grid-wrap {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--space-xxl);
+  align-items: center;
+  padding: var(--space-xl);
+}
+
+.figures__intro { align-self: start; }
+
+.figures__lead {
+  margin: var(--space-l) 0 0;
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-400);
+  line-height: 1.7;
+  max-width: 46ch;
+}
+
+@media (max-width: 880px) {
+  .figures__grid-wrap { grid-template-columns: 1fr; }
+}
+
+.figures__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-xl);
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-left: var(--space-l);
+  border-left: 3px solid var(--color-brand-primary);
+}
+
+.figure__value {
+  font-size: var(--size-figure);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-brand-primary);
+  line-height: 1;
+}
+
+.figure__label {
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-fg-secondary);
+}
+
+/* -----------------------------------------------------------------------
+   Catalog grid
+   ----------------------------------------------------------------------- */
+
+.catalog-band {
+  padding-block: var(--space-xxl);
+}
+
+.catalog-header {
+  padding-block: var(--space-xxl) var(--space-xl);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+}
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-l);
+  padding-block: var(--space-xl) var(--space-l);
+}
+
+/* Filter bar -- off-white .surface toolbar panel (surface look comes from the
+   shared .surface utility in markup); flex row of 4 controls, wraps on narrow
+   viewports. Sits above catalog grids. */
+.catalog-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-m);
+  padding: var(--space-l);
+  margin-block: var(--space-l);
+}
+
+/* Search label grows to fill remaining row space */
+.catalog-filters .filter-search {
+  flex: 1 1 240px;
+}
+
+/* TextInput inside the search label stretches to fill the wrapper */
+.catalog-filters .filter-search .nofbiz__textinput {
+  width: 100%;
+}
+
+/* ComboBox labels keep natural width but won't clip at narrow sizes */
+.catalog-filters .nofbiz__fieldlabel:not(.filter-search) {
+  min-width: 160px;
+}
+
+/* -----------------------------------------------------------------------
+   Summary card (shared by catalog)
+   ----------------------------------------------------------------------- */
+
+/* Surface look delegated to the .surface utility class in markup.
+   Deltas kept here: green top accent border and heavier shadow. */
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-m);
+  padding: var(--space-l);
+  border-top: 3px solid var(--color-brand-primary);
+  box-shadow: var(--shadow-4);
+  transition: box-shadow var(--duration-fast) var(--curve-easy-ease),
+              transform var(--duration-fast) var(--curve-easy-ease);
+}
+
+.summary-card:hover {
+  box-shadow: var(--shadow-8);
+  transform: translateY(-2px);
+}
+
+/* -----------------------------------------------------------------------
+   Status badge (shared by catalog + admin manage)
+   ----------------------------------------------------------------------- */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-xxs) var(--space-mNudge);
+  border-radius: var(--radius-circular);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  width: fit-content;
+}
+
+.status-badge--open {
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
+}
+
+.status-badge--closed {
+  background: var(--color-bg-secondary);
+  color: var(--color-fg-secondary);
+}
+
+.status-badge--cancelled {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-fg);
+}
+
+.status-badge--unknown {
+  background: var(--color-bg-secondary);
+  color: var(--color-fg-tertiary);
+}
+
+.status-badge--accepted {
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
+}
+
+.status-badge--pending {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-fg);
+}
+
+/* -----------------------------------------------------------------------
+   Chips (shared by catalog cards + admin manage)
+   ----------------------------------------------------------------------- */
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sNudge);
+}
+
+.chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  min-width: 0;
+}
+
+.chip-label {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-fg-tertiary);
+  font-weight: 600;
+}
+
+.chip-value {
+  font-size: 0.95em;
+  color: var(--color-fg-primary);
+  word-break: break-word;
+}
+
+/* -----------------------------------------------------------------------
+   Admin page
+   ----------------------------------------------------------------------- */
+
+.admin-header-band {
+  width: 100%;
+  padding-block: var(--space-xxl) var(--space-xl);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+}
+
+.admin-workspace-band {
+  width: 100%;
+}
+
+/* -----------------------------------------------------------------------
+   Admin manage table + empty state (shared by manage and initiatives)
+   ----------------------------------------------------------------------- */
+
+.empty-state {
+  text-align: center;
+  padding: var(--space-xl) var(--space-l);
+  color: var(--color-fg-secondary);
+}
+
+.empty-state-hint {
+  color: var(--color-fg-tertiary);
+  font-size: var(--font-size-200);
+}
+
+.manage-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--color-stroke-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.manage-row {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr 1.5fr;
+  align-items: center;
+  gap: var(--space-m);
+  padding: var(--space-s) var(--space-m);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+}
+
+.manage-row:last-child {
+  border-bottom: none;
+}
+
+.manage-row--header {
+  background: var(--color-bg-subtle);
+  font-weight: 600;
+}
+
+.manage-col-header {
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-fg-tertiary);
+  font-weight: 600;
+}
+
+.manage-cell {
+  font-size: 0.95em;
+  color: var(--color-fg-primary);
+  word-break: break-word;
+}
+
+.manage-cell--title {
+  font-weight: 500;
+}
+
+.manage-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.manage-dialog-footer {
+  display: flex;
+  gap: var(--space-s);
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .manage-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Initiative SDG tags -- shared by the catalog cards and the detail hero. */
+.initiative-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.initiative-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-brand-selected);
+  color: var(--color-brand-active);
+  font-size: 0.8em;
+  font-weight: 500;
+}

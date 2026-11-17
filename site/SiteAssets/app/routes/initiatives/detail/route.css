@@ -1,0 +1,358 @@
+/* route-specific styles for initiatives/detail only */
+
+/* -----------------------------------------------------------------------
+   Hero band
+   ----------------------------------------------------------------------- */
+
+.detail-hero {
+  padding-block: clamp(var(--space-xxl), 6vw, 72px);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+}
+
+.detail-hero-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
+  max-width: 760px;
+}
+
+.detail-hero-title {
+  margin: 0;
+  font-size: var(--size-section-title);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+  color: var(--color-fg-primary);
+}
+
+.detail-hero-association {
+  margin: 0;
+  font-size: var(--font-size-400);
+  color: var(--color-fg-secondary);
+}
+
+.detail-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-s);
+}
+
+/* -----------------------------------------------------------------------
+   Body band
+   ----------------------------------------------------------------------- */
+
+.detail-body-band {
+  padding-block: var(--space-xxl);
+}
+
+.detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxl);
+}
+
+/* -----------------------------------------------------------------------
+   Back link
+   ----------------------------------------------------------------------- */
+
+.detail-back-link {
+  align-self: flex-start;
+  font-size: var(--font-size-300);
+  color: var(--color-brand-primary);
+  background: transparent;
+  padding: 0;
+  margin-bottom: calc(-1 * var(--space-l));
+}
+
+.detail-back-link:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+/* -----------------------------------------------------------------------
+   Section
+   ----------------------------------------------------------------------- */
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
+}
+
+.detail-section.surface {
+  padding: var(--space-xl);
+}
+
+.detail-section-title {
+  margin: 0;
+  font-size: var(--font-size-500);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+  padding-bottom: var(--space-sNudge);
+  border-bottom: 1px solid var(--color-stroke-subtle);
+}
+
+.detail-section-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-m) var(--space-xl);
+}
+
+/* -----------------------------------------------------------------------
+   Field rows (label + value pairs)
+   ----------------------------------------------------------------------- */
+
+.detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-label {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-fg-tertiary);
+  font-weight: 600;
+}
+
+.detail-value {
+  font-size: var(--font-size-400);
+  color: var(--color-fg-primary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* -----------------------------------------------------------------------
+   Not-found state
+   ----------------------------------------------------------------------- */
+
+.detail-not-found-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-m);
+  padding-block: var(--space-xxl);
+}
+
+.detail-not-found {
+  color: var(--color-fg-secondary);
+}
+
+/* -----------------------------------------------------------------------
+   Registration modal -- shared chrome
+   ----------------------------------------------------------------------- */
+
+.modal-heading {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--font-size-500);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+}
+
+/* Read-only "Registering as ..." identity line */
+.modal-registering-as {
+  margin: 0 0 var(--space-m);
+  font-size: var(--font-size-300);
+  color: var(--color-fg-secondary);
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* All modal FieldLabel labels: consistent typography + pointer (they are real
+   <label for> elements that focus/toggle their control on click). */
+.modal-form .nofbiz__fieldlabel__label {
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-fg-primary);
+  cursor: pointer;
+}
+
+/* The dietary control is a ComboBox whose FieldLabel `for` targets a non-labelable
+   root element, so clicking the label does nothing -- keep the default cursor. */
+.modal-field-combo .nofbiz__fieldlabel__label {
+  cursor: default;
+}
+
+.modal-footer {
+  display: flex;
+  gap: var(--space-s);
+  justify-content: flex-end;
+  padding-top: var(--space-sNudge);
+}
+
+/* -----------------------------------------------------------------------
+   Framework CSS-leak fixes for modal form controls
+   The framework .form-control rule sets width: 25ch which leaks onto
+   TextArea, TextInput, and CheckBox inside modal forms.
+   ----------------------------------------------------------------------- */
+
+/* TextArea, TextInput, and ComboBox should fill the modal column */
+.modal-form .nofbiz__textarea,
+.modal-form .nofbiz__textinput,
+.modal-form .nofbiz__combobox {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* The framework base rule (.nofbiz__checkbox { width: 1.25em }) is defeated by
+   the .form-control { width: 25ch } leak in the cascade. Restore an explicit
+   square -- `auto` collapses the box to border-only width (~4px) because the
+   inner SVG has zero intrinsic width. */
+.modal-form .nofbiz__checkbox,
+.modal-transport-label .nofbiz__checkbox {
+  width: 1.25em;
+  height: 1.25em;
+  flex: 0 0 auto;
+}
+
+/* -----------------------------------------------------------------------
+   Transportation checkbox row
+   ----------------------------------------------------------------------- */
+
+/* FieldLabel(position:right) lays out label + checkbox in a flex row whose
+   component-container defaults to flex:1 -- that stretches the checkbox away
+   from its label, leaving a large gap. Pin the container to its content width
+   and left-align the row so the control and label sit together. */
+.modal-transport-label {
+  width: 100%;
+}
+
+.modal-transport-label .nofbiz__fieldlabel__wrapper {
+  justify-content: flex-start;
+}
+
+.modal-transport-label .nofbiz__fieldlabel__component-container {
+  flex: 0 0 auto;
+}
+
+
+/* -----------------------------------------------------------------------
+   Registration modal -- FORM state
+   ----------------------------------------------------------------------- */
+
+/* (Form fields use .modal-field / .modal-footer above; labels via .nofbiz__fieldlabel__label) */
+
+/* -----------------------------------------------------------------------
+   Registration modal -- REGISTERED (summary) state
+   ----------------------------------------------------------------------- */
+
+.modal-reg-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  margin-bottom: var(--space-m);
+  padding: var(--space-m);
+  background: var(--color-surface-secondary, var(--color-bg-subtle, #f5f5f5));
+  border-radius: var(--radius-m, 4px);
+  border: 1px solid var(--color-stroke-subtle);
+}
+
+.modal-reg-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modal-reg-summary-label {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-fg-tertiary);
+  font-weight: 600;
+}
+
+.modal-reg-summary-value {
+  font-size: var(--font-size-400);
+  color: var(--color-fg-primary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* -----------------------------------------------------------------------
+   Registration modal -- FULL state
+   ----------------------------------------------------------------------- */
+
+.modal-full-notice {
+  margin: 0 0 var(--space-l);
+  font-size: var(--font-size-400);
+  color: var(--color-fg-secondary);
+  line-height: 1.6;
+}
+
+/* -----------------------------------------------------------------------
+   Cancel-confirmation dialog body text
+   ----------------------------------------------------------------------- */
+
+.dialog-body-text {
+  margin: 0;
+  font-size: var(--font-size-400);
+  color: var(--color-fg-primary);
+  line-height: 1.6;
+}
+
+/* -----------------------------------------------------------------------
+   Testimonials section
+   ----------------------------------------------------------------------- */
+
+.testimonials-notice {
+  margin: 0 0 var(--space-l);
+  font-size: var(--font-size-300);
+  color: var(--color-fg-tertiary);
+  font-style: italic;
+}
+
+.testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-l);
+  margin-bottom: var(--space-xl);
+}
+
+/* Surface look delegated to the .surface utility class in markup.
+   Delta kept here: green left accent border. */
+.testimonial-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
+  padding: var(--space-l);
+  border-left: 3px solid var(--color-brand-primary);
+}
+
+.testimonial-quote {
+  margin: 0;
+  font-size: var(--font-size-400);
+  color: var(--color-fg-primary);
+  line-height: 1.6;
+}
+
+.testimonial-attribution {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.testimonial-name {
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+}
+
+.testimonial-role {
+  font-size: var(--font-size-200);
+  color: var(--color-fg-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
