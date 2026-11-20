@@ -1,0 +1,318 @@
+<title>Project Wizard Fields</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Minimal: one column, plain tables, system font, no color beyond text and rules. */
+  :root {
+    --bg: #ffffff;
+    --fg: #1d1f1e;
+    --muted: #6b716e;
+    --line: #e3e6e4;
+    --head: #f6f7f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151716;
+      --fg: #e6e9e7;
+      --muted: #9aa19d;
+      --line: #2c302e;
+      --head: #1c1f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151716;
+    --fg: #e6e9e7;
+    --muted: #9aa19d;
+    --line: #2c302e;
+    --head: #1c1f1d;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  main {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding-block: 40px 64px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+  h1, h2 { margin: 0; font-weight: 600; text-wrap: balance; }
+  h1 { font-size: 22px; }
+  h2 { font-size: 15px; }
+  p { margin: 0; }
+  .intro { color: var(--muted); max-width: 70ch; }
+  section { display: flex; flex-direction: column; gap: 10px; }
+
+  .scroll { overflow-x: auto; }
+  table {
+    width: 100%;
+    min-width: 820px;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: 8px 12px 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  th {
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom-color: var(--fg);
+    white-space: nowrap;
+  }
+  td:first-child { font-weight: 500; width: 15%; }
+  td:nth-child(2) { width: 15%; color: var(--muted); }
+  td:nth-child(3) { width: 18%; }
+  td:nth-child(4) { width: 22%; }
+  td:nth-child(5) { width: 30%; }
+  .when { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+  .none { color: var(--muted); }
+
+  ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; max-width: 80ch; }
+</style>
+
+<main>
+
+  <header>
+    <h1>Project wizard fields</h1>
+  </header>
+
+  <p class="intro">Inferred purpose is the likely intent behind each field. Actually drives is what the application does with the value. Question marks where the two may not match and a business answer is needed.</p>
+
+  <section>
+    <h2>Step 1: Role</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Field</th><th>SP column</th><th>Inferred purpose</th><th>Actually drives</th><th>Question</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Role</td>
+            <td>Role</td>
+            <td>Does our team own delivery (Leading) or support another team's (Contributing)?</td>
+            <td>Which step 2 fields appear; forces Access level to Internal for Contributing; enables P4P PM</td>
+            <td>If Contributing means supporting someone else's project, should linking to that project be required? The screen says Contributing projects inherit dates and access from the leading team, but the Contributing form has no Umbrella field and nothing is inherited. The link can only be added later in the Edit tab.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Step 2: Charter</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Field</th><th>SP column</th><th>Inferred purpose</th><th>Actually drives</th><th>Question</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Project name<span class="when">Required</span></td>
+            <td>Title</td>
+            <td>Readable name</td>
+            <td>Search, cards, umbrella search</td>
+            <td>Is there a naming convention? The seed data uses "Codename - Description".</td>
+          </tr>
+          <tr>
+            <td>Project manager<span class="when">Leading only</span></td>
+            <td>ProjectManager, ProjectManagerEmail</td>
+            <td>Accountable delivery lead, anyone in AD</td>
+            <td>Owner access, close and delete rights, step 4 member allocations, search by email. Defaults to you</td>
+            <td>It is reset to you if you go back to step 1 and press Continue.</td>
+          </tr>
+          <tr>
+            <td>Context</td>
+            <td>Context</td>
+            <td>The problem, the "why"</td>
+            <td>Search, card excerpt</td>
+            <td class="none">--</td>
+          </tr>
+          <tr>
+            <td>Objectives</td>
+            <td>Objectives</td>
+            <td>Success criteria ("measurably")</td>
+            <td>Search, detail page</td>
+            <td>The placeholder asks for measurable goals, but the structured targets (Target type, Target values) only exist on the Edit tab. Capture them at charter time?</td>
+          </tr>
+          <tr>
+            <td>Category</td>
+            <td>ProjectType</td>
+            <td>Main type of work (Consultancy, Data, Lean, PMO, Tech, Transformation)</td>
+            <td>Home filter, Sub Category options, Tech field toggle</td>
+            <td>Users can type new values. They are saved on the project but not added to the admin list, so the home Category filter can't find those projects, spelling variants split reports, and a typed category gets no sub categories.</td>
+          </tr>
+          <tr>
+            <td>Sub Category<span class="when">When the category has options</span></td>
+            <td>SubCategory</td>
+            <td>Finer classification</td>
+            <td>Display and export only, not filterable</td>
+            <td>For Tech it overlaps with Tech Project: SharePoint &amp; O365, Power Platform, Cloud &amp; Infra, Automation &amp; RPA versus SharePoint, PowerBI, Automation, AI, LLM, Dataiku, LightDev, Centric/NOA. Same classification twice with two vocabularies.</td>
+          </tr>
+          <tr>
+            <td>Access level<span class="when">Leading only</span></td>
+            <td>AccessLevel</td>
+            <td>Confidentiality</td>
+            <td>Core of visibility. Defaults to Internal. Confidential can never be changed back</td>
+            <td>Is Internal the right default? It hides the project from non-P4P users. The wizard shows the raw value "NoRestriction"; the Access tab shows "Open — no restriction".</td>
+          </tr>
+          <tr>
+            <td>GDPR classification<span class="when">Leading only</span></td>
+            <td>GDPRClassification</td>
+            <td>Type of personal data handled</td>
+            <td>Stored, shown and exported only</td>
+            <td>No "no personal data" option: all three values (CPD, OPD, SPD) assume personal data, and CPD is pre-selected, so nobody actually decides it. Contributing projects get no value.</td>
+          </tr>
+          <tr>
+            <td>Tech Project<span class="when">Tech only</span></td>
+            <td>TechProject</td>
+            <td>Technology or platform used</td>
+            <td>Stored and exported</td>
+            <td>"Tech Project" reads like a yes/no; it is really "Technology". Single choice only: what about projects using several technologies? Overlaps with Sub Category.</td>
+          </tr>
+          <tr>
+            <td>Tech Phase<span class="when">Tech only</span></td>
+            <td>TechPhase</td>
+            <td>Delivery stage (Business Case, Framing, Discovery, Dev, CM, Live)</td>
+            <td>Stored and exported</td>
+            <td>Overlaps Status (Pipeline is roughly Business Case/Framing). Why do only Tech projects have a phase? No history of phase changes. The spec says Contributing gets only Tech Project; the form shows both.</td>
+          </tr>
+          <tr>
+            <td>Umbrella Project<span class="when">Leading only</span></td>
+            <td>UmbrellaProgram (title), LinkedPrograms (ID)</td>
+            <td>Parent program or project</td>
+            <td>Tree view, program children, overview</td>
+            <td>The stored title goes stale when the parent is renamed. LinkedPrograms also holds project IDs. Only one parent is possible, although the schema describes a list.</td>
+          </tr>
+          <tr>
+            <td>Start date</td>
+            <td>StartDate</td>
+            <td>Planned start</td>
+            <td>Start of the capacity window; also embedded in the project ID</td>
+            <td>Optional. Empty means the project counts in every past month. No check that end is after start.</td>
+          </tr>
+          <tr>
+            <td>Expected end date</td>
+            <td>ExpectedEndDate</td>
+            <td>Planned finish</td>
+            <td>End of the capacity window; overdue open projects stay counted in the current month</td>
+            <td>The form says an empty end date is inherited from the umbrella project. Nothing does this, and programs have no dates to inherit. An empty end date is open-ended, so the project counts against capacity in every future month.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Step 3: Governance</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Field</th><th>SP column</th><th>Inferred purpose</th><th>Actually drives</th><th>Question</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Business Line</td>
+            <td>BusinessLine</td>
+            <td>Division served (CCCO, CCG, COO, ESG, Finance, GCM, HR, TB, Transversal)</td>
+            <td>Display, card, export</td>
+            <td>Not a home filter. Users can type new values, with the same filtering and reporting issues as Category.</td>
+          </tr>
+          <tr>
+            <td>Product</td>
+            <td>Product</td>
+            <td>Product the work relates to</td>
+            <td>Overview and export only</td>
+            <td>Free text can't be reported on. Make it an admin-managed list, or drop it?</td>
+          </tr>
+          <tr>
+            <td>Status</td>
+            <td>Status</td>
+            <td>Lifecycle state</td>
+            <td>Home filter, capacity filter, closure</td>
+            <td>Defaults to "In Progress", not Pipeline, even for brand-new projects. Delayed, On Hold and Stopped can be picked at creation. The capacity view excludes Pipeline by default, so a new project counts against capacity immediately.</td>
+          </tr>
+          <tr>
+            <td>PM Scope</td>
+            <td>PMScope</td>
+            <td>Which PM team owns this entry</td>
+            <td>Visibility, but only on NoRestriction projects; home filter; defaults to P4P</td>
+            <td>On Internal projects (the default) it grants nothing and is just a tag. Intended?</td>
+          </tr>
+          <tr>
+            <td>Sponsors</td>
+            <td>Sponsor (list of people)</td>
+            <td>Accountable business sponsors</td>
+            <td>Display and export only</td>
+            <td>Being a sponsor grants no access. On an Internal project (the default), a sponsor who isn't in P4P, a PM Member or delegated cannot open the project.</td>
+          </tr>
+          <tr>
+            <td>Stakeholders</td>
+            <td>Stakeholders</td>
+            <td>Interested parties</td>
+            <td>Display and export only</td>
+            <td>Same as Sponsors: no access granted. Does anyone get notified?</td>
+          </tr>
+          <tr>
+            <td>PM Members</td>
+            <td>PMMembers, PMMembersEmail</td>
+            <td>Delivery team from P4P</td>
+            <td>Owner role (edit, delegate, change access level; cannot close); step 4 allocations</td>
+            <td>Limited to P4P members, so people from other teams can't be added. Is owner rights for every member too broad?</td>
+          </tr>
+          <tr>
+            <td>P4P PM<span class="when">Contributing only</span></td>
+            <td>P4PPM, P4PPMEmail</td>
+            <td>P4P coordinator for our contribution</td>
+            <td>Owner and close rights; member allocations</td>
+            <td>When you are the P4P PM, step 4 shows allocation inputs for each PM Member, but those values are not saved on submit (bug).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Step 4: Capacity</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Field</th><th>Saved to</th><th>Inferred purpose</th><th>Actually drives</th><th>Question</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Your allocation<span class="when">P4P members</span></td>
+            <td>Allocations row</td>
+            <td>Your share of a full-time person, 0 to 1</td>
+            <td>Capacity Tracker</td>
+            <td>One flat value for the whole project; it can't vary over time. A value of 0 is skipped.</td>
+          </tr>
+          <tr>
+            <td>Member allocations<span class="when">PM only</span></td>
+            <td>Allocations rows</td>
+            <td>The PM sets the team's shares</td>
+            <td>Capacity Tracker</td>
+            <td>Shown to the Leading PM and to the Contributing P4P PM, but only saved for the Leading PM. Values entered by a P4P PM are lost without warning (bug).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Set automatically</h2>
+    <ul>
+      <li>UUID: PROJ_NNNN_ddmmyyyy, using the start date and a random 4-digit number, with no uniqueness check.</li>
+      <li>SubmittedBy, SubmittedByEmail: the creator keeps owner and close rights permanently, even after leaving the team.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Not on the form (Edit tab only)</h2>
+    <p>TargetType, TargetValues, TargetScope, AchievedValue, AchievedDate, Validated, NpsScore, ReviewComments, ClientFeedback, Improvements, CloseDate.</p>
+  </section>
+
+</main>
